@@ -1,0 +1,473 @@
+@import "tailwindcss";
+
+/* ==========================================================================
+   Qlink — premium dark theme
+   Warm near-black canvas · off-white type · single lime accent · mono numerals
+   Token NAMES are kept stable so every component inherits the theme.
+   ========================================================================== */
+
+@theme {
+  --color-background: #0a0a0c;
+  --color-foreground: #f4f4f5;
+  --color-muted: #9a9aa3;
+  --color-border: #26262b;
+  --color-card: #141418;
+
+  /* brand scale == lime accent */
+  --color-brand-50: #191d10; /* dark lime-tinted surface (chips, hovers) */
+  --color-brand-100: #232b14;
+  --color-brand-500: #d4fb63; /* bright — hovers, focus borders */
+  --color-brand-600: #c5f24e; /* base accent — CTAs */
+  --color-brand-700: #cef75f; /* accent text on dark */
+
+  --color-accent: #c5f24e; /* success / paid == same accent (one system) */
+  --color-danger: #fb7185;
+
+  --radius-xl: 0.75rem; /* buttons, inputs */
+  --radius-2xl: 1rem; /* cards */
+
+  --font-display: var(--font-space-grotesk), var(--font-geist-sans), sans-serif;
+  --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, monospace;
+}
+
+html {
+  height: 100%;
+  color-scheme: dark;
+  background: var(--color-background);
+}
+
+body {
+  min-height: 100%;
+  background: var(--color-background);
+  color: var(--color-foreground);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+h1,
+h2,
+h3,
+h4 {
+  font-family: var(--font-display);
+  letter-spacing: -0.01em;
+}
+
+::selection {
+  background: color-mix(in oklab, var(--color-brand-600) 85%, transparent);
+  color: #0a0a0c;
+}
+
+/* ==========================================================================
+   Creator page themes
+   --------------------------------------------------------------------------
+   A SEPARATE `--page-*` namespace, deliberately not an override of --color-*.
+   Overriding --color-background on a wrapper looks like it works (the @theme
+   above has no `inline`, so utilities compile to var(--color-*) and really do
+   inherit), but .btn-primary is `bg-brand-600 text-background`, so its label
+   would turn mocha, and .card/.input/.badge would re-theme invisibly.
+
+   Note the checkout modal does NOT escape this: it is fixed-position, which
+   escapes layout but not inheritance, and it renders inside .page-surface. Any
+   app-token surface reachable from a creator page must set its own `color`
+   rather than inherit — see .card below.
+
+   These blocks are UNLAYERED on purpose. Unlayered CSS beats every cascade
+   layer, so putting them in @layer components would let any stray unlayered
+   rule win. Only the .pill/.page-* classes below belong in a layer.
+
+   `--page-*` is not a Tailwind theme namespace (--color-*, --font-*, --radius-*
+   are), so these generate no utilities and cannot collide with @theme.
+
+   Hex here is mirrored in lib/themes.ts. Every pair is WCAG AA verified.
+   ========================================================================== */
+[data-page-theme] {
+  --page-bg: #0a0a0c;
+  --page-fg: #f4f4f5;
+  --page-muted: #9a9aa3;
+  --page-pill-bg: #141418;
+  --page-pill-fg: #f4f4f5;
+  --page-pill-border: #26262b;
+  --page-accent: #c5f24e;
+  --page-accent-fg: #0a0a0c;
+  --page-ring: #c5f24e;
+  --page-radius: 9999px;
+  --page-font: var(--font-geist-sans);
+}
+
+/* `default` is byte-identical to the tokens above. Motivated: every creator
+   who has never opened the editor must see zero change. */
+[data-page-theme="mocha"] {
+  --page-bg: #6f4a3c;
+  --page-fg: #ffffff;
+  --page-muted: #e0cfc6;
+  --page-pill-bg: #ffffff;
+  --page-pill-fg: #241812;
+  --page-pill-border: #ffffff;
+  --page-accent: #f0a868;
+  --page-accent-fg: #241812;
+  --page-ring: #ffffff;
+}
+
+[data-page-theme="forest"] {
+  --page-bg: #1e3a2f;
+  --page-fg: #f2efe6;
+  --page-muted: #b8c9bd;
+  --page-pill-bg: #f2efe6;
+  --page-pill-fg: #15241d;
+  --page-pill-border: #f2efe6;
+  --page-accent: #e8b04b;
+  --page-accent-fg: #1a1206;
+  --page-ring: #f2efe6;
+}
+
+[data-page-theme="cobalt"] {
+  --page-bg: #1b3a8f;
+  --page-fg: #ffffff;
+  --page-muted: #c3d0f0;
+  --page-pill-bg: #f4f1e8;
+  --page-pill-fg: #141b30;
+  --page-pill-border: #f4f1e8;
+  --page-accent: #ffd166;
+  --page-accent-fg: #1a1405;
+  --page-ring: #ffffff;
+}
+
+[data-page-theme="paper"] {
+  --page-bg: #f4f2ed;
+  --page-fg: #17161a;
+  --page-muted: #5c5a63;
+  --page-pill-bg: #17161a;
+  --page-pill-fg: #f7f6f3;
+  --page-pill-border: #17161a;
+  --page-accent: #17161a;
+  --page-accent-fg: #f7f6f3;
+  --page-ring: #17161a;
+}
+
+[data-page-font="serif"] {
+  --page-font: var(--font-page-serif);
+}
+
+/* Canvas escalation. Only app/[username]/page.tsx emits data-page-canvas, so
+   the dashboard preview (which sets data-page-theme too) never repaints the
+   dashboard. Motivated: without this the iOS overscroll gutter and the
+   browser UI stay near-black behind a light creator page. */
+html:has([data-page-canvas="mocha"]) {
+  background: #6f4a3c;
+}
+html:has([data-page-canvas="forest"]) {
+  background: #1e3a2f;
+}
+html:has([data-page-canvas="cobalt"]) {
+  background: #1b3a8f;
+}
+html:has([data-page-canvas="paper"]) {
+  background: #f4f2ed;
+  color-scheme: light;
+}
+
+@layer components {
+  .container-app {
+    @apply mx-auto w-full max-w-6xl px-5;
+  }
+
+  .font-display {
+    font-family: var(--font-display);
+  }
+
+  /* --- Buttons: one radius (xl), lime primary with near-black text --- */
+  .btn,
+  .btn-primary,
+  .btn-outline,
+  .btn-ghost,
+  .btn-danger {
+    @apply inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2.5
+      text-sm font-semibold transition-[background-color,transform,border-color,opacity]
+      duration-200 active:translate-y-px disabled:cursor-not-allowed
+      disabled:opacity-40 select-none
+      focus-visible:outline-2 focus-visible:outline-offset-2
+      focus-visible:outline-brand-600;
+  }
+  .btn-primary {
+    @apply bg-brand-600 text-background hover:bg-brand-500;
+  }
+  .btn-outline {
+    @apply border border-border bg-white/[0.02] text-foreground hover:bg-white/[0.06]
+      hover:border-white/20;
+  }
+  .btn-ghost {
+    @apply text-muted hover:bg-white/[0.06] hover:text-foreground;
+  }
+  .btn-danger {
+    @apply bg-danger text-background hover:opacity-90;
+  }
+  .btn-lg {
+    @apply px-5 py-3 text-[0.95rem];
+  }
+
+  /* --- Surfaces --- */
+  /* `text-foreground` is not redundant with the body colour: the checkout modal
+     is a DOM descendant of .page-surface (fixed position escapes layout, NOT
+     inheritance), so on a light page theme every unstyled string inside a card
+     inherited --page-fg and went near-black on bg-card. A surface that paints
+     its own background owns its foreground. */
+  .card {
+    @apply rounded-2xl border border-border bg-card text-foreground;
+    box-shadow:
+      inset 0 1px 0 0 rgb(255 255 255 / 0.04),
+      0 1px 2px 0 rgb(0 0 0 / 0.4);
+  }
+
+  .glass {
+    @apply rounded-2xl border border-white/10;
+    background: rgb(255 255 255 / 0.04);
+    backdrop-filter: blur(20px) saturate(160%);
+    -webkit-backdrop-filter: blur(20px) saturate(160%);
+    box-shadow: inset 0 1px 0 0 rgb(255 255 255 / 0.08);
+  }
+  @media (prefers-reduced-transparency: reduce) {
+    .glass {
+      background: #141418;
+      backdrop-filter: none;
+      -webkit-backdrop-filter: none;
+    }
+  }
+
+  /* --- Forms (dark, WCAG-AA contrast) --- */
+  .input {
+    @apply w-full rounded-xl border border-border bg-white/[0.03] px-3.5 py-2.5
+      text-sm text-foreground outline-none transition
+      placeholder:text-muted/70
+      focus:border-brand-500 focus:bg-white/[0.05] focus:ring-2 focus:ring-brand-600/25;
+  }
+  .label {
+    @apply mb-1.5 block text-sm font-medium text-foreground;
+  }
+  .hint {
+    @apply mt-1 text-xs text-muted;
+  }
+
+  .badge {
+    @apply inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-medium;
+  }
+
+  /* --- Editor: an input that reads as text until you touch it ---------------
+     Motivated: the link editor shows a title and a URL that are usually just
+     read, not edited. Full .input chrome on every row turns a list of six links
+     into twelve boxes. The border appears on hover/focus, so the affordance is
+     there the moment a pointer or the keyboard arrives. Never used for a field
+     whose editability is not already obvious from context. */
+  .input-bare {
+    @apply w-full min-w-0 rounded-lg border border-transparent bg-transparent px-2 py-1
+      text-sm text-foreground outline-none transition
+      placeholder:text-muted/60
+      hover:border-border
+      focus:border-brand-500 focus:bg-white/[0.05] focus:ring-2 focus:ring-brand-600/25;
+  }
+
+  /* --- Toggle switch --------------------------------------------------------
+     A real <input type=checkbox> is inside this label, screen-reader visible
+     and keyboard-operable; the track and thumb are painted from :has() off its
+     checked state. Deliberately NOT a <button role=switch>: the checkbox comes
+     with the state, the label association and the form semantics for free. */
+  .switch {
+    @apply relative inline-flex h-6 w-11 shrink-0 cursor-pointer items-center
+      rounded-full border border-border bg-white/[0.08]
+      transition-colors duration-200;
+  }
+  .switch:has(:checked) {
+    @apply border-brand-600 bg-brand-600;
+  }
+  .switch:has(:focus-visible) {
+    @apply outline-2 outline-offset-2 outline-brand-600;
+  }
+  .switch-thumb {
+    @apply pointer-events-none ml-0.5 h-4.5 w-4.5 rounded-full bg-white
+      shadow-sm transition-transform duration-200;
+  }
+  /* Thumb turns near-black on the lime track: white-on-lime has no edge. */
+  .switch:has(:checked) .switch-thumb {
+    @apply translate-x-5;
+    background: var(--color-background);
+  }
+
+  /* --- Phone frame for the live preview ------------------------------------
+     Cosmetic chrome only. The creator page inside is the REAL component, so
+     the frame must not clip or rescale it — it only bounds the scroll area. */
+  .phone {
+    @apply relative mx-auto w-full max-w-[320px] rounded-[2.25rem]
+      border-[10px] border-[#1b1b20] bg-[#1b1b20];
+    box-shadow:
+      0 24px 60px -24px rgb(0 0 0 / 0.8),
+      inset 0 0 0 1px rgb(255 255 255 / 0.07);
+  }
+  .phone-screen {
+    @apply relative overflow-y-auto overscroll-contain rounded-[1.6rem];
+    height: min(640px, calc(100dvh - 13rem));
+    scrollbar-width: none;
+  }
+  .phone-screen::-webkit-scrollbar {
+    display: none;
+  }
+
+  .hairline {
+    @apply h-px w-full border-0 bg-white/[0.08];
+  }
+
+  /* --- Creator page surface -------------------------------------------------
+     Consumes ONLY var(--page-*). Shape rule for the public page: interactive
+     things are full pills (--page-radius), the avatar is a circle, and nothing
+     else has a corner. One radius system, one accent, one theme per page. */
+  .page-surface {
+    background: var(--page-bg);
+    color: var(--page-fg);
+    font-family: var(--page-font);
+  }
+  .page-muted {
+    color: var(--page-muted);
+  }
+  .page-accent-text {
+    color: var(--page-accent);
+  }
+
+  /* The link pill. ~60px tall to match the reference's generous tap target,
+     which also clears the 44px minimum comfortably. */
+  .pill {
+    @apply relative flex w-full items-center justify-center px-14 py-5
+      text-center text-[0.975rem] font-medium
+      transition-[transform,box-shadow] duration-200
+      focus-visible:outline-2 focus-visible:outline-offset-2;
+    min-height: 3.75rem;
+    border-radius: var(--page-radius);
+    background: var(--page-pill-bg);
+    color: var(--page-pill-fg);
+    border: 1px solid var(--page-pill-border);
+    outline-color: var(--page-ring);
+  }
+  .pill:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 24px -8px rgb(0 0 0 / 0.45);
+  }
+  .pill:active {
+    transform: translateY(0);
+  }
+
+  /* Trailing affordance inside a pill. pointer-events:none is load-bearing:
+     the pill is an <a>, and a real control here would be interactive content
+     nested inside a link, which is invalid HTML and traps keyboard users. */
+  .pill-trail {
+    @apply pointer-events-none absolute inset-y-0 right-5 flex items-center;
+    color: var(--page-pill-fg);
+    opacity: 0.55;
+  }
+
+  /* Round icon button for the top bar. Same pill radius, square aspect. */
+  .page-icon-btn {
+    @apply inline-grid h-10 w-10 place-items-center transition-opacity
+      duration-200 hover:opacity-80
+      focus-visible:outline-2 focus-visible:outline-offset-2;
+    border-radius: var(--page-radius);
+    background: color-mix(in oklab, var(--page-fg) 12%, transparent);
+    color: var(--page-fg);
+    outline-color: var(--page-ring);
+  }
+
+  /* Primary CTA on a creator page (checkout). Uses the page accent, never the
+     app's lime, so one page never shows two accent systems. */
+  .page-cta {
+    @apply flex w-full items-center justify-center px-6 py-3.5 text-sm font-semibold
+      transition-[transform,opacity] duration-200 active:translate-y-px
+      disabled:cursor-not-allowed disabled:opacity-40
+      focus-visible:outline-2 focus-visible:outline-offset-2;
+    border-radius: var(--page-radius);
+    background: var(--page-accent);
+    color: var(--page-accent-fg);
+    outline-color: var(--page-ring);
+  }
+}
+
+/* --- Collapsible sections --------------------------------------------------
+   Three tiers, best-effort down to an honest snap:
+     1. Chromium (~69%): height + opacity interpolate via interpolate-size.
+     2. ::details-content browsers (~83%, Baseline 2025): opacity crossfade,
+        height snaps.
+     3. Anything older: instant snap, which is the native disclosure behaviour
+        users already know.
+   Deliberately NOT shipping the Chrome docs' own fallback (height:150px +
+   overflow-y:scroll): a nested scrollbar inside a list of link pills is worse
+   than snapping. Zero CLS either way, since CLS ignores shifts within 500ms of
+   a user interaction. */
+@supports selector(::details-content) {
+  .acc::details-content {
+    opacity: 0;
+    transition:
+      opacity 260ms cubic-bezier(0.16, 1, 0.3, 1),
+      content-visibility 260ms allow-discrete;
+    /* allow-discrete above is not polish. Without it the content unrenders on
+       frame 0 and you animate the height of an empty box. */
+  }
+  .acc[open]::details-content {
+    opacity: 1;
+  }
+}
+
+@supports (interpolate-size: allow-keywords) and selector(::details-content) {
+  :root {
+    interpolate-size: allow-keywords;
+  }
+  .acc::details-content {
+    height: 0;
+    overflow: clip;
+    transition:
+      height 300ms cubic-bezier(0.16, 1, 0.3, 1),
+      opacity 260ms cubic-bezier(0.16, 1, 0.3, 1),
+      content-visibility 300ms allow-discrete;
+  }
+  .acc[open]::details-content {
+    height: auto;
+  }
+}
+
+/* Subtle film grain — fixed, non-interactive, cheap. Motivated: adds depth to
+   the flat near-black canvas so gradients don't band. */
+.grain::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  pointer-events: none;
+  opacity: 0.035;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    /* Delays, not just durations. Motivated: a staggered reveal with only its
+       duration zeroed still holds items at opacity 0 for i * 40ms and then
+       pops them in, which is exactly the motion the user asked us not to do. */
+    animation-delay: 0ms !important;
+    transition-duration: 0.001ms !important;
+    transition-delay: 0ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* Kept as its own rule ON PURPOSE. `*` does not match ::details-content, so the
+   block above never reaches the accordion. And an unsupported selector inside a
+   selector LIST invalidates the whole list, so folding this into the rule above
+   would silently disable reduced motion entirely in Safari and Firefox. The
+   @supports guard keeps it inert where the pseudo-element does not exist. */
+@supports selector(::details-content) {
+  @media (prefers-reduced-motion: reduce) {
+    .acc::details-content {
+      transition-duration: 0.001ms !important;
+      transition-delay: 0ms !important;
+    }
+  }
+}
