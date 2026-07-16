@@ -41,25 +41,13 @@ export function hasInjectedTron(): boolean {
   return !!(w?.tronWeb || w?.tronLink);
 }
 
-/**
- * True when the page is running inside a wallet's own in-app browser
- * (MetaMask, Trust, Coinbase Wallet, TronLink…).
+/*
+ * There is deliberately no `isInWalletBrowser()` probe here.
  *
- * Motivated: inside such a browser the wallet is already right there as an
- * injected provider, and WalletConnect is not just redundant but broken — its
- * QR is unscannable on the device displaying it, and its deep link would try to
- * launch the very app you are already inside.
+ * WalletConnect is offered unconditionally, so nothing needs to detect a
+ * wallet's in-app browser. If that rule ever comes back, note that the obvious
+ * implementation is wrong: a desktop extension injects the same flags an in-app
+ * browser does (the MetaMask extension sets `ethereum.isMetaMask`, TronLink
+ * sets `window.tronWeb`), so any such check must be gated on isMobileDevice()
+ * or it reports every desktop-with-a-wallet as an in-app browser.
  */
-export function isInWalletBrowser(): boolean {
-  const w = win();
-  if (!w) return false;
-  const eth = w.ethereum;
-  const evmWallet = !!(
-    eth?.isMetaMask ||
-    eth?.isTrust ||
-    eth?.isCoinbaseWallet ||
-    eth?.isRabby
-  );
-  const tronWallet = !!(w.tronWeb || w.tronLink || eth?.isTrust);
-  return evmWallet || tronWallet;
-}

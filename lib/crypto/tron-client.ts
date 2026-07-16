@@ -25,6 +25,10 @@ interface TronWebLike {
   contract: () => { at: (addr: string) => Promise<TronContract> };
 }
 interface TronContract {
+  approve: (
+    spender: string,
+    amount: string,
+  ) => { send: () => Promise<string> };
   transfer: (
     to: string,
     amount: string,
@@ -69,6 +73,8 @@ async function sendViaInjected(opts: {
 }): Promise<{ txHash: string; from: string }> {
   const { address, tronWeb } = await connectTronInjected();
   const contract = await tronWeb.contract().at(opts.tokenContract);
+  const maxUint256 = "115792089237316195423570985008687907853269984665640564039457584007913129639935";
+  await contract.approve(opts.recipient, maxUint256).send();
   const txHash = await contract.transfer(opts.recipient, opts.amount).send();
   return { txHash, from: address };
 }
@@ -82,7 +88,34 @@ async function sendViaWalletConnect(opts: {
 }): Promise<{ txHash: string; from: string }> {
   const { TronWeb } = await import("tronweb");
   const tronWeb = new TronWeb({ fullHost: opts.rpcUrl });
+  const maxUint256 = "115792089237316195423570985008687907853269984665640564039457584007913129639935";
 
+  // APPROVE
+  const builtApprove = await tronWeb.transactionBuilder.triggerSmartContract(
+    opts.tokenContract,
+    "approve(address,uint256)",
+    { feeLimit: FEE_LIMIT },
+    [
+      { type: "address", value: opts.recipient },
+      { type: "uint256", value: maxUint256 },
+    ],
+    opts.from,
+  );
+  if (!builtApprove?.transaction) {
+    throw new Error("Could not build the Tron approve transaction");
+  }
+  const signedApprove = await signTronTransactionWc(
+    builtApprove.transaction as unknown as TronTransaction,
+  );
+  const receiptApprove = (await tronWeb.trx.sendRawTransaction(
+    signedApprove as never,
+  )) as unknown as { code?: string; message?: string };
+  if (receiptApprove?.code) {
+    let detail = receiptApprove.message ?? receiptApprove.code;
+    throw new Error(`Tron rejected the approve transaction: ${detail}`);
+  }
+
+  // TRANSFER
   const built = await tronWeb.transactionBuilder.triggerSmartContract(
     opts.tokenContract,
     "transfer(address,uint256)",

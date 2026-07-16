@@ -12,12 +12,6 @@ const GENERIC_INJECTED_ID = "injected";
 export interface EvmWalletOptions {
   /** Connectors safe to call `connect()` on directly, best first. */
   connectors: Connector[];
-  /**
-   * Whether to offer "All wallets" (AppKit's QR + deep-link modal). False
-   * inside a wallet's own browser, where its injected provider is already
-   * listed above and WalletConnect is unscannable and self-referential.
-   */
-  showWalletConnect: boolean;
   /** False until mounted — these probes need `window`. */
   ready: boolean;
 }
@@ -39,8 +33,9 @@ function rank(c: Connector): number {
  * list raw gives you "MetaMask" next to a duplicate "Browser Wallet", plus a
  * WalletConnect entry that must not be connected to directly — AppKit's
  * connector routes `display_uri` into AppKit's own modal, so calling it
- * ourselves pairs against a QR nobody can see. That entry is surfaced as
- * "All wallets", which opens the AppKit modal properly.
+ * ourselves pairs against a QR nobody can see. The caller surfaces it as
+ * "All wallets" instead, which opens the AppKit modal properly — and does so
+ * unconditionally, which is why nothing here gates on the environment.
  */
 export function useEvmWalletOptions(): EvmWalletOptions {
   const { connectors } = useConnect();
@@ -74,9 +69,5 @@ export function useEvmWalletOptions(): EvmWalletOptions {
     );
   }, [connectors, env]);
 
-  return {
-    connectors: filtered,
-    showWalletConnect: env.ready && !env.inWalletBrowser,
-    ready: env.ready,
-  };
+  return { connectors: filtered, ready: env.ready };
 }

@@ -1,16 +1,10 @@
 "use client";
 
 import { useSyncExternalStore } from "react";
-import {
-  hasInjectedEvm,
-  hasInjectedTron,
-  isInWalletBrowser,
-  isMobileDevice,
-} from "./wallet-env";
+import { hasInjectedEvm, hasInjectedTron, isMobileDevice } from "./wallet-env";
 
 export interface WalletEnv {
   mobile: boolean;
-  inWalletBrowser: boolean;
   injectedEvm: boolean;
   injectedTron: boolean;
   /** False only in the server snapshot — the probes need `window`. */
@@ -19,7 +13,6 @@ export interface WalletEnv {
 
 const SERVER_SNAPSHOT: WalletEnv = {
   mobile: false,
-  inWalletBrowser: false,
   injectedEvm: false,
   injectedTron: false,
   ready: false,
@@ -36,7 +29,6 @@ let snapshot: WalletEnv | null = null;
 function getSnapshot(): WalletEnv {
   snapshot ??= {
     mobile: isMobileDevice(),
-    inWalletBrowser: isInWalletBrowser(),
     injectedEvm: hasInjectedEvm(),
     injectedTron: hasInjectedTron(),
     ready: true,
