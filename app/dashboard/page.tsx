@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { getAppUrl } from "@/lib/app-url";
 import { SectionsEditor } from "@/components/editor/SectionsEditor";
 import {
   ensurePackagesSection,
@@ -9,11 +10,6 @@ import {
 } from "@/lib/sections";
 
 export const metadata: Metadata = { title: "Links" };
-
-const APP_URL = (process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000").replace(
-  /\/$/,
-  "",
-);
 
 /**
  * The dashboard IS the editor.
@@ -31,6 +27,7 @@ export default async function DashboardHome({
   searchParams: Promise<{ published?: string }>;
 }) {
   const justPublished = (await searchParams).published === "1";
+  const appUrl = await getAppUrl();
   const supabase = await createClient();
   const {
     data: { user },
@@ -73,7 +70,7 @@ export default async function DashboardHome({
         profile={profile}
         sections={editable}
         packages={packages}
-        publicUrl={profile.username ? `${APP_URL}/${profile.username}` : ""}
+        publicUrl={profile.username ? `${appUrl}/${profile.username}` : ""}
         isPublished={profile.is_published}
       />
     </div>

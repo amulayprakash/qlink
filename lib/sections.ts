@@ -9,7 +9,10 @@ export type PageSection = Pick<
   "id" | "kind" | "title" | "position" | "collapsible" | "default_open"
 > & { links: PageLink[] };
 
-export type PageLink = Pick<Link, "id" | "title" | "url" | "is_active">;
+export type PageLink = Pick<
+  Link,
+  "id" | "title" | "url" | "is_active" | "platform" | "show_as_icon"
+>;
 
 type SectionRow = Omit<PageSection, "links">;
 type LinkRow = PageLink & { section_id: string | null };
@@ -82,6 +85,8 @@ export function groupSections(
       title: l.title,
       url: l.url,
       is_active: l.is_active,
+      platform: l.platform,
+      show_as_icon: l.show_as_icon,
     });
   }
 
@@ -113,7 +118,7 @@ export async function loadCreatorPage(
 ) {
   const linksQuery = supabase
     .from("links")
-    .select("id, title, url, section_id, is_active")
+    .select("id, title, url, section_id, is_active, platform, show_as_icon")
     .eq("profile_id", profileId);
 
   const [{ data: sections }, { data: links }, { data: packages }] =

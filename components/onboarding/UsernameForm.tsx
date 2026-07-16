@@ -4,11 +4,14 @@ import { useActionState, useEffect, useState } from "react";
 import { saveUsername, type ActionState } from "@/app/onboarding/actions";
 import { USERNAME_RE } from "@/lib/validation";
 
-const HOST = (process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000")
-  .replace(/^https?:\/\//, "")
-  .replace(/\/$/, "");
-
-export function UsernameForm({ initialUsername }: { initialUsername: string }) {
+export function UsernameForm({
+  initialUsername,
+  host,
+}: {
+  initialUsername: string;
+  /** Real request host, from lib/app-url.ts — not the build-time env var. */
+  host: string;
+}) {
   const [state, action, pending] = useActionState<ActionState, FormData>(
     saveUsername,
     undefined,
@@ -61,7 +64,7 @@ export function UsernameForm({ initialUsername }: { initialUsername: string }) {
           Username
         </label>
         <div className="flex items-center rounded-xl border border-border bg-card focus-within:border-brand-500 focus-within:ring-2 focus-within:ring-brand-100">
-          <span className="pl-3.5 text-sm text-muted">{HOST}/</span>
+          <span className="pl-3.5 text-sm text-muted">{host}/</span>
           <input
             id="username"
             name="username"

@@ -8,7 +8,21 @@ export type EditorLink = {
   /** False hides the link from the public page. It stays here, in place, so
    *  the creator can unpause it. */
   is_active: boolean;
+  /** A slug from lib/platforms.ts, or null for a custom link. Set once, by the
+   *  Add picker: it records what the creator SAID they were adding, so editing
+   *  the URL afterwards cannot leave an Instagram glyph on a YouTube link. */
+  platform: string | null;
+  /** Render under the bio as an icon rather than in the list as a pill. Only
+   *  ever true when platform is set — an icon needs a glyph. */
+  show_as_icon: boolean;
 };
+
+/** What the Add picker hands back: a complete link, minus the id the reducer
+ *  mints. Links no longer start blank, so there is nothing to type in first. */
+export type NewLinkDraft = Pick<
+  EditorLink,
+  "title" | "url" | "platform" | "show_as_icon"
+>;
 
 export type EditorSection = {
   id: string;
@@ -47,14 +61,14 @@ export type EditorState = {
 
 export type EditorAction =
   | { type: "addSection" }
-  | { type: "addQuickLink" }
+  | { type: "addQuickLink"; draft: NewLinkDraft }
   | { type: "removeSection"; sectionId: string }
   | { type: "setSectionTitle"; sectionId: string; title: string }
   | { type: "setCollapsible"; sectionId: string; value: boolean }
   | { type: "setDefaultOpen"; sectionId: string; value: boolean }
   | { type: "reorderSections"; ids: string[] }
   | { type: "moveSection"; sectionId: string; delta: number }
-  | { type: "addLink"; sectionId: string }
+  | { type: "addLink"; sectionId: string; draft: NewLinkDraft }
   | { type: "removeLink"; sectionId: string; linkId: string }
   | {
       type: "setLinkField";
@@ -64,6 +78,7 @@ export type EditorAction =
       value: string;
     }
   | { type: "toggleLink"; sectionId: string; linkId: string; value: boolean }
+  | { type: "setLinkIcon"; sectionId: string; linkId: string; value: boolean }
   | { type: "reorderLinks"; groups: Record<string, string[]> }
   | { type: "moveLink"; sectionId: string; linkId: string; delta: number }
   | { type: "moveLinkToSection"; fromId: string; toId: string; linkId: string }
@@ -97,6 +112,8 @@ export function initEditorState(
         title: l.title,
         url: l.url,
         is_active: l.is_active,
+        platform: l.platform,
+        show_as_icon: l.show_as_icon,
       })),
     })),
     // See EditorState.bucketId. First in STORED order, which for all but a
@@ -156,16 +173,11 @@ export function editorReducer(
      * The big "Add" button: a link, with no collection to put it in first.
      *
      * Prepended, not appended: the button sits directly above this list, and a
-     * new empty row appearing under the fold — below however many links the
-     * creator already has — reads as nothing happening.
+     * new row appearing under the fold — below however many links the creator
+     * already has — reads as nothing happening.
      */
     case "addQuickLink": {
-      const link: EditorLink = {
-        id: newId(),
-        title: "",
-        url: "",
-        is_active: true,
-      };
+      const link: EditorLink = { id: newId(), is_active: true, ...action.draft };
       const bucket = state.sections.find(
         (s) => s.id === state.bucketId && s.kind === "links",
       );
@@ -258,7 +270,7 @@ export function editorReducer(
     case "addLink":
       return mapSection(state, action.sectionId, (s) => ({
         ...s,
-        links: [...s.links, { id: newId(), title: "", url: "", is_active: true }],
+        links: [...s.links, { id: newId(), is_active: true, ...action.draft }],
       }));
 
     case "toggleLink":
@@ -266,6 +278,20 @@ export function editorReducer(
         ...s,
         links: s.links.map((l) =>
           l.id === action.linkId ? { ...l, is_active: action.value } : l,
+        ),
+      }));
+
+    // Guarded on platform, not merely hidden by the UI: the checkbox only
+    // renders for a link that has one, and this is that rule rather than a
+    // convention the next caller has to remember. An icon with no glyph is the
+    // one combination the page cannot render — see links_icon_needs_platform.
+    case "setLinkIcon":
+      return mapSection(state, action.sectionId, (s) => ({
+        ...s,
+        links: s.links.map((l) =>
+          l.id === action.linkId && (l.platform || !action.value)
+            ? { ...l, show_as_icon: action.value }
+            : l,
         ),
       }));
 
@@ -358,7 +384,9 @@ export function editorReducer(
 }
 
 /** What the server action receives. Empty rows are dropped here rather than
- *  failing validation, matching how ProfileForm filters blank links. */
+ *  failing validation, matching how ProfileForm filters blank links. The Add
+ *  picker no longer produces blank rows, but a title can still be cleared back
+ *  to empty in the editor. */
 export function serializeSections(sections: EditorSection[]) {
   return sections.map((s) => ({
     id: s.id,
@@ -376,6 +404,12 @@ export function serializeSections(sections: EditorSection[]) {
               title: l.title,
               url: l.url,
               is_active: l.is_active,
+              platform: l.platform,
+              // Belt and braces with the reducer's own guard, because this is
+              // the payload the server parses: a link whose platform went away
+              // must not arrive claiming to be an icon, or linkSchema rejects
+              // the whole page over a row the creator cannot see is wrong.
+              show_as_icon: l.show_as_icon && l.platform !== null,
             })),
   }));
 }

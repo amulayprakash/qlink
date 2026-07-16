@@ -74,6 +74,15 @@ export interface Link {
   /** False hides the link from the public page without deleting it. The row
    *  keeps its position, so unpausing puts it back where it was. */
   is_active: boolean;
+  /** Which well-known site this points at — a slug from lib/platforms.ts. Null
+   *  for a custom link, which is not "unknown": there IS no platform. Free text
+   *  by design (see 0005), so treat an unrecognised value as a custom link
+   *  rather than an error. */
+  platform: string | null;
+  /** Render under the bio as a small icon instead of in the list as a pill.
+   *  Orthogonal to is_active — that one decides WHETHER a link renders, this
+   *  decides WHERE. Requires a platform: an icon needs a glyph to draw. */
+  show_as_icon: boolean;
   created_at: string;
 }
 

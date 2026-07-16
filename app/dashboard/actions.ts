@@ -273,9 +273,12 @@ export async function savePage(
         url: l.url,
         position: i,
         // Round-tripped, not defaulted: these rows are reinserted on every
-        // save, so omitting this would silently unpause every paused link the
-        // next time the creator touched anything.
+        // save, so omitting any of the three would silently reset every paused
+        // link, every platform and every social icon on the page the next time
+        // the creator touched anything.
         is_active: l.is_active,
+        platform: l.platform,
+        show_as_icon: l.show_as_icon,
       })),
     );
   if (linkRows.length) {

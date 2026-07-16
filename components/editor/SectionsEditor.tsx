@@ -17,8 +17,10 @@ import {
 } from "@phosphor-icons/react";
 import { savePage } from "@/app/dashboard/actions";
 import { Avatar } from "@/components/Avatar";
+import { PlatformIcon } from "@/components/PlatformIcon";
 import { Select } from "@/components/ui/Select";
 import { PhonePreview } from "@/components/editor/PhonePreview";
+import { AddLinkModal } from "@/components/editor/AddLinkModal";
 import {
   TitleBioModal,
   type ProfileDraft,
@@ -37,6 +39,7 @@ import {
   type EditorLink,
   type EditorSection,
   type EditorState,
+  type NewLinkDraft,
 } from "@/components/editor/state";
 
 type Dispatch = (a: EditorAction) => void;
@@ -102,6 +105,35 @@ export function SectionsEditor({
   });
   const [editingProfile, setEditingProfile] = useState(false);
   const closeProfileModal = useCallback(() => setEditingProfile(false), []);
+
+  /**
+   * Where the Add picker will put what it makes.
+   *
+   * null closes it. `{ sectionId: null }` is the big Add button — no collection
+   * chosen, so the link goes to the bucket. A string targets that collection.
+   * One modal serves both: "what are you adding" is the same question wherever
+   * the answer lands, and two pickers would drift.
+   *
+   * A wrapper object rather than a bare `string | null`, because null is a
+   * meaningful target here (the bucket) and would otherwise be indistinguishable
+   * from "closed".
+   */
+  const [addTarget, setAddTarget] = useState<{ sectionId: string | null } | null>(
+    null,
+  );
+  const closeAddModal = useCallback(() => setAddTarget(null), []);
+  const addLink = useCallback(
+    (draft: NewLinkDraft) => {
+      const sectionId = addTarget?.sectionId ?? null;
+      dispatch(
+        sectionId
+          ? { type: "addLink", sectionId, draft }
+          : { type: "addQuickLink", draft },
+      );
+      setAddTarget(null);
+    },
+    [addTarget],
+  );
 
   const serialized = useMemo(
     () => serializeSections(state.sections),
@@ -200,7 +232,7 @@ export function SectionsEditor({
           type="button"
           className="btn-primary btn-lg w-full"
           disabled={atLinkLimit}
-          onClick={() => dispatch({ type: "addQuickLink" })}
+          onClick={() => setAddTarget({ sectionId: null })}
         >
           <Plus size={18} weight="bold" />
           Add
@@ -260,6 +292,7 @@ export function SectionsEditor({
                 bucketId={state.bucketId}
                 packageCount={packages.length}
                 atLinkLimit={atLinkLimit}
+                onAddLink={() => setAddTarget({ sectionId: section.id })}
                 dispatch={dispatch}
               />
             ))}
@@ -348,6 +381,12 @@ export function SectionsEditor({
           onSaved={setProfileDraft}
         />
       )}
+
+      {/* Outside the <form> and mounted only while open, for both of the same
+          reasons as TitleBioModal above: it contains a <form> of its own, and
+          its field seeding is only correct if a cancelled add cannot survive
+          into the next opening. */}
+      {addTarget && <AddLinkModal onAdd={addLink} onClose={closeAddModal} />}
     </div>
   );
 }
@@ -413,6 +452,7 @@ function SectionCard({
   bucketId,
   packageCount,
   atLinkLimit,
+  onAddLink,
   dispatch,
 }: {
   section: EditorSection;
@@ -422,6 +462,10 @@ function SectionCard({
   bucketId: string | null;
   packageCount: number;
   atLinkLimit: boolean;
+  /** Opens the Add picker targeted at this collection. The card does not own
+   *  the modal: there is one, at the top, so both add paths ask the same
+   *  question. */
+  onAddLink: () => void;
   dispatch: Dispatch;
 }) {
   const { ref, handleRef, isDragging } = useSortable({
@@ -540,7 +584,7 @@ function SectionCard({
             type="button"
             className="btn-ghost text-sm"
             disabled={atLinkLimit}
-            onClick={() => dispatch({ type: "addLink", sectionId: section.id })}
+            onClick={onAddLink}
           >
             <Plus size={14} weight="bold" />
             Add link
@@ -635,6 +679,15 @@ function LinkCard({
     >
       <Grip handleRef={handleRef} label={`Reorder ${label}`} />
 
+      {/* Only for a link that has a platform. A generic link glyph on every
+          custom row would be a column of identical decoration; here the icon
+          IS the information, and it is the same glyph the page draws. */}
+      {link.platform && (
+        <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full border border-border bg-white/[0.04]">
+          <PlatformIcon slug={link.platform} size={16} />
+        </span>
+      )}
+
       <div className="min-w-0 flex-1 space-y-0.5">
         <input
           className="input-bare font-medium"
@@ -668,6 +721,29 @@ function LinkCard({
             })
           }
         />
+
+        {/* Under the fields rather than beside the pause switch, which is the
+            obvious place and the wrong one: this row already carries five
+            controls, and a second bare switch would leave two toggles with no
+            way to tell which one hides the link. It only renders with a
+            platform, since an icon needs a glyph to draw. */}
+        {link.platform && (
+          <label className="flex w-fit cursor-pointer items-center gap-2 px-2 pt-1 text-xs text-muted">
+            <input
+              type="checkbox"
+              checked={link.show_as_icon}
+              onChange={(e) =>
+                dispatch({
+                  type: "setLinkIcon",
+                  sectionId,
+                  linkId: link.id,
+                  value: e.target.checked,
+                })
+              }
+            />
+            Show as icon under bio
+          </label>
+        )}
       </div>
 
       <NudgeButtons

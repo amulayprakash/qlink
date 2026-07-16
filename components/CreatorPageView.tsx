@@ -6,8 +6,9 @@ import { LinksSection } from "@/components/page/LinksSection";
 import { PackagesSection, type PagePackage } from "@/components/page/PackagesSection";
 import { Logo } from "@/components/Logo";
 import { ShareButton } from "@/components/page/ShareButton";
+import { PlatformIcon } from "@/components/PlatformIcon";
 import { pageTheme, themeOverrideStyle } from "@/lib/themes";
-import type { PageSection } from "@/lib/sections";
+import type { PageLink, PageSection } from "@/lib/sections";
 import type { Package, Profile } from "@/lib/types";
 
 export type PublicProfile = Pick<
@@ -65,6 +66,32 @@ export function CreatorPageView({
   const config = profile.theme_config ?? {};
   const name = profile.display_name ?? `@${profile.username}`;
 
+  /**
+   * Social icons are hoisted out of their sections and rendered as one row
+   * under the bio; everything else stays a pill in the list.
+   *
+   * The split lives HERE rather than in loadCreatorPage because it is a
+   * rendering decision, not a loading one — the editor reads the same rows and
+   * must see every link in its section, icon or not. Doing it in the component
+   * every surface already shares also means the live preview cannot disagree
+   * with the public page about where a link goes.
+   *
+   * Each link lands in exactly one place: an icon is removed from its section
+   * rather than drawn twice. Order is section order, then position, which is
+   * the order the editor shows and the creator arranged.
+   *
+   * One predicate decides both halves, so they are exact complements. Written
+   * that way on purpose: `show_as_icon && platform` here and `!show_as_icon`
+   * there look equivalent and are not — a row with show_as_icon and no platform
+   * would match neither and disappear off the page. The database forbids that
+   * combination (links_icon_needs_platform) and this does not depend on it.
+   */
+  const isIcon = (l: PageLink) => l.show_as_icon && Boolean(l.platform);
+  const icons = sections.flatMap((s) => s.links.filter(isIcon));
+  const pillSections = icons.length
+    ? sections.map((s) => ({ ...s, links: s.links.filter((l) => !isIcon(l)) }))
+    : sections;
+
   return (
     <div
       data-page-theme={theme.id}
@@ -112,12 +139,13 @@ export function CreatorPageView({
             {profile.bio && (
               <p className="mt-3 max-w-md text-sm opacity-90">{profile.bio}</p>
             )}
+            <SocialIcons icons={icons} />
           </div>
         </Reveal>
 
-        {sections.length > 0 && (
+        {pillSections.length > 0 && (
           <div className="mt-8 space-y-3">
-            {sections.map((s, i) =>
+            {pillSections.map((s, i) =>
               s.kind === "packages" ? (
                 <PackagesSection
                   key={s.id}
@@ -147,6 +175,43 @@ export function CreatorPageView({
           <span>accepted</span>
         </div>
       </div>
+    </div>
+  );
+}
+
+/**
+ * The creator's socials, as a row of icons under the bio.
+ *
+ * Reuses .page-icon-btn — the same round control the share button in the top
+ * bar is built from. Motivated: it already paints from the --page-* tokens, so
+ * these icons pick up the creator's theme on every preset instead of needing a
+ * second set of colours that would have to be contrast-checked five more times.
+ *
+ * The accessible name is the link's title, which the picker seeds with the
+ * platform's name ("Instagram") and the creator can change. It has to come from
+ * here: PlatformIcon is aria-hidden, so without this the link would announce as
+ * its own URL.
+ *
+ * flex-wrap, because there is no cap on how many a creator adds — a tenth icon
+ * wraps to a second row rather than pushing the ninth off the page.
+ */
+function SocialIcons({ icons }: { icons: PageLink[] }) {
+  if (icons.length === 0) return null;
+  return (
+    <div className="mt-4 flex flex-wrap items-center justify-center gap-1">
+      {icons.map((l) => (
+        <a
+          key={l.id}
+          href={l.url}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="page-icon-btn"
+          title={l.title}
+        >
+          <span className="sr-only">{l.title}</span>
+          <PlatformIcon slug={l.platform} size={19} />
+        </a>
+      ))}
     </div>
   );
 }

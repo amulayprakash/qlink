@@ -1,17 +1,20 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono, Space_Grotesk, Newsreader } from "next/font/google";
-import { headers } from "next/headers";
 import "./globals.css";
-import { Providers } from "./providers";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
   subsets: ["latin"],
 });
 
+// preload: false, for the same reason as the serif below: --font-mono is a
+// design token that no component currently renders with, so preloading it spent
+// a font fetch on every page for a face nothing draws. The @font-face still
+// ships, so the day something uses font-mono it just works — one fetch, then.
 const geistMono = Geist_Mono({
   variable: "--font-geist-mono",
   subsets: ["latin"],
+  preload: false,
 });
 
 const spaceGrotesk = Space_Grotesk({
@@ -37,13 +40,24 @@ export const metadata: Metadata = {
     "Create your page, define service packages, and accept stablecoin payments (USDT/USDC) across every EVM chain and Tron.",
 };
 
-export default async function RootLayout({
+/**
+ * Deliberately not async, and deliberately reads nothing per-request.
+ *
+ * This used to call `headers()` to hand the wallet providers the cookie for
+ * wagmi's SSR hydration. `headers()` is a dynamic API, and a dynamic API in the
+ * ROOT layout opts every route in the app out of static rendering — the
+ * marketing page included, which is pure markup and should be served from the
+ * CDN. The providers now live behind BuyButton's lazy boundary and read their
+ * own state from document.cookie, so nothing in the shell needs the request.
+ *
+ * Keep it that way: adding headers()/cookies() here makes all 22 routes dynamic
+ * again, and the build's "ƒ (Dynamic)" markers are how you'd notice.
+ */
+export default function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  const cookies = (await headers()).get("cookie");
-
   // Motivated: no inline colorScheme on <html>. An inline style outranks every
   // stylesheet rule, which would defeat a themed creator page switching the
   // canvas to light. globals.css already sets html { color-scheme: dark }.
@@ -52,9 +66,7 @@ export default async function RootLayout({
       lang="en"
       className={`${geistSans.variable} ${geistMono.variable} ${spaceGrotesk.variable} ${newsreader.variable} h-full antialiased`}
     >
-      <body className="min-h-full">
-        <Providers cookies={cookies}>{children}</Providers>
-      </body>
+      <body className="min-h-full">{children}</body>
     </html>
   );
 }

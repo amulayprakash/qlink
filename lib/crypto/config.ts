@@ -23,6 +23,12 @@ export interface NetworkConfig {
   name: string;
   /** EVM numeric chain id (undefined for Tron). */
   chainId?: number;
+  /**
+   * CAIP-2 chain id used by Tron WalletConnect sessions (undefined for EVM,
+   * where wagmi derives it from `chainId`). Mobile Tron wallets namespace their
+   * session by this exact string, so a Nile order must not advertise Mainnet.
+   */
+  wcChainId?: string;
   rpcUrl: string;
   /** Block confirmations required before an order is marked paid. */
   confirmations: number;
@@ -119,6 +125,7 @@ const MAINNET: Record<string, NetworkConfig> = {
     id: "tron",
     kind: "tron",
     name: "Tron",
+    wcChainId: "tron:0x2b6653dc",
     rpcUrl: env("TRON_FULL_HOST", "https://api.trongrid.io"),
     confirmations: 19,
     explorerTx: (h) => `https://tronscan.org/#/transaction/${h}`,
@@ -151,6 +158,7 @@ const TESTNET: Record<string, NetworkConfig> = {
     id: "tron",
     kind: "tron",
     name: "Tron Nile Testnet",
+    wcChainId: "tron:0xcd8690dc",
     rpcUrl: env("TRON_FULL_HOST_TESTNET", "https://nile.trongrid.io"),
     confirmations: 3,
     explorerTx: (h) => `https://nile.tronscan.org/#/transaction/${h}`,

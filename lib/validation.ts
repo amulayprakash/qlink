@@ -44,26 +44,54 @@ export function normalizeUrl(raw: string): string {
   return `https://${s}`;
 }
 
-export const linkSchema = z.object({
-  title: z.string().trim().min(1, "Required").max(80),
-  url: z
-    .string()
-    .trim()
-    .min(1, "Required")
-    .transform(normalizeUrl)
-    .refine((v) => {
-      try {
-        new URL(v);
-        return true;
-      } catch {
-        return false;
-      }
-    }, "Enter a valid URL"),
-  /** Defaults visible so a payload that predates the pause toggle still parses:
-   *  the onboarding profile form posts {title, url} and nothing else. Mirrors
-   *  the column default in 0004. */
-  is_active: z.boolean().default(true),
-});
+/**
+ * links.platform: a slug from lib/platforms.ts.
+ *
+ * Format only, deliberately NOT membership of the catalogue — and this file
+ * does not import it, which keeps that honest. Motivated: a slug retired from
+ * the catalogue would make every row still carrying it unsaveable, so the
+ * creator could not edit a page they had not touched. The render path falls
+ * back to a generic glyph for a slug it does not know, so an unknown value
+ * degrades. This regex is the same one 0005 checks in the database.
+ */
+export const platformSchema = z
+  .string()
+  .trim()
+  .regex(/^[a-z0-9_]{1,32}$/, "Unknown platform");
+
+export const linkSchema = z
+  .object({
+    title: z.string().trim().min(1, "Required").max(80),
+    url: z
+      .string()
+      .trim()
+      .min(1, "Required")
+      .transform(normalizeUrl)
+      .refine((v) => {
+        try {
+          new URL(v);
+          return true;
+        } catch {
+          return false;
+        }
+      }, "Enter a valid URL"),
+    /** Defaults visible so a payload that predates the pause toggle still parses:
+     *  the onboarding profile form posts {title, url} and nothing else. Mirrors
+     *  the column default in 0004. */
+    is_active: z.boolean().default(true),
+    /** Same reasoning as is_active, for 0005: a payload predating the picker
+     *  carries neither field, and both defaults mean "a plain custom pill",
+     *  which is what those links have always been. */
+    platform: platformSchema.nullable().default(null),
+    show_as_icon: z.boolean().default(false),
+  })
+  // Mirrors links_icon_needs_platform from 0005. An icon with no platform has
+  // no glyph to draw and no text to fall back to — it would render as an
+  // invisible tap target under the bio.
+  .refine(
+    (l) => !l.show_as_icon || l.platform !== null,
+    "An icon link needs a platform.",
+  );
 export const linksSchema = z.array(linkSchema).max(50);
 
 /** Total links allowed per page, across every section. Motivated: applying

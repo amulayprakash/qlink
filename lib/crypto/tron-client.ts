@@ -1,7 +1,20 @@
 /**
- * Client-side Tron payments via the injected TronLink wallet.
- * Uses TronLink's own `window.tronWeb` — no tronweb bundle needed in the client.
+ * Client-side Tron payments.
+ *
+ * Two routes to the same TRC-20 `transfer`:
+ *   - `injected`      — TronLink's own `window.tronWeb` signs and broadcasts.
+ *   - `walletconnect` — we build the transaction, a phone wallet signs it over
+ *                       the relay, and we broadcast it ourselves.
+ *
+ * The WalletConnect route is the only reason `tronweb` reaches the client, so
+ * it is imported dynamically: an extension customer shouldn't pay to download
+ * a bundle they never execute.
  */
+
+import type { TronTransaction } from "./tron-walletconnect";
+import { signTronTransactionWc } from "./tron-walletconnect";
+
+export type TronRoute = "injected" | "walletconnect";
 
 interface TronLinkProvider {
   request?: (args: { method: string }) => Promise<unknown>;
@@ -25,14 +38,17 @@ function win() {
   };
 }
 
-export async function connectTron(): Promise<{
+/** Fee ceiling for a TRC-20 transfer: 100 TRX, denominated in SUN. */
+const FEE_LIMIT = 100_000_000;
+
+export async function connectTronInjected(): Promise<{
   address: string;
   tronWeb: TronWebLike;
 }> {
   const w = win();
   if (!w.tronLink && !w.tronWeb) {
     throw new Error(
-      "TronLink not found. Install the TronLink wallet to pay on Tron.",
+      "TronLink not found. Install the TronLink extension, or scan the QR code with a mobile Tron wallet.",
     );
   }
   if (w.tronLink?.request) {
@@ -46,15 +62,97 @@ export async function connectTron(): Promise<{
   return { address, tronWeb };
 }
 
-export async function sendTronTransfer(opts: {
+async function sendViaInjected(opts: {
   tokenContract: string;
   recipient: string;
-  amount: string; // base units
+  amount: string;
 }): Promise<{ txHash: string; from: string }> {
-  const { address, tronWeb } = await connectTron();
+  const { address, tronWeb } = await connectTronInjected();
   const contract = await tronWeb.contract().at(opts.tokenContract);
-  const txHash = await contract
-    .transfer(opts.recipient, opts.amount)
-    .send();
+  const txHash = await contract.transfer(opts.recipient, opts.amount).send();
   return { txHash, from: address };
+}
+
+async function sendViaWalletConnect(opts: {
+  tokenContract: string;
+  recipient: string;
+  amount: string;
+  rpcUrl: string;
+  from: string;
+}): Promise<{ txHash: string; from: string }> {
+  const { TronWeb } = await import("tronweb");
+  const tronWeb = new TronWeb({ fullHost: opts.rpcUrl });
+
+  const built = await tronWeb.transactionBuilder.triggerSmartContract(
+    opts.tokenContract,
+    "transfer(address,uint256)",
+    { feeLimit: FEE_LIMIT },
+    [
+      { type: "address", value: opts.recipient },
+      { type: "uint256", value: opts.amount },
+    ],
+    opts.from,
+  );
+  if (!built?.transaction) {
+    throw new Error("Could not build the Tron transaction");
+  }
+
+  const signed = await signTronTransactionWc(
+    built.transaction as unknown as TronTransaction,
+  );
+
+  const receipt = (await tronWeb.trx.sendRawTransaction(
+    signed as never,
+  )) as unknown as {
+    result?: boolean;
+    txid?: string;
+    code?: string;
+    message?: string;
+  };
+  if (receipt?.code) {
+    // TronGrid hex-encodes `message` on the rejection path.
+    let detail = receipt.message ?? receipt.code;
+    if (receipt.message && /^[0-9a-fA-F]+$/.test(receipt.message)) {
+      try {
+        detail = new TextDecoder().decode(
+          Uint8Array.from(
+            receipt.message.match(/../g)!.map((b) => parseInt(b, 16)),
+          ),
+        );
+      } catch {
+        /* keep the raw value */
+      }
+    }
+    throw new Error(`Tron rejected the transaction: ${detail}`);
+  }
+
+  const txHash = receipt?.txid ?? signed.txID;
+  if (!txHash) throw new Error("Tron returned no transaction id");
+  return { txHash, from: opts.from };
+}
+
+export async function sendTronTransfer(opts: {
+  route: TronRoute;
+  tokenContract: string;
+  recipient: string;
+  /** Base units. */
+  amount: string;
+  /** WalletConnect route only — it broadcasts on its own. */
+  rpcUrl?: string;
+  /** WalletConnect route only — the paired account. */
+  from?: string;
+}): Promise<{ txHash: string; from: string }> {
+  if (opts.route === "injected") {
+    return sendViaInjected(opts);
+  }
+  if (!opts.rpcUrl || !opts.from) {
+    throw new Error("Tron wallet is not connected");
+  }
+  return sendViaWalletConnect({
+    tokenContract: opts.tokenContract,
+    recipient: opts.recipient,
+    amount: opts.amount,
+    rpcUrl: opts.rpcUrl,
+    from: opts.from,
+  });
 }
