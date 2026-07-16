@@ -10,7 +10,14 @@ import {
 } from "wagmi";
 import type { Connector } from "wagmi";
 import { useAppKit, useAppKitState } from "@reown/appkit/react";
-import { getNetwork, paymentOptions } from "@/lib/crypto/config";
+import { NETWORK_LIST, getNetwork } from "@/lib/crypto/config";
+import type {
+  ChainKind,
+  NetworkConfig,
+  TokenInfo,
+  TokenSymbol,
+} from "@/lib/crypto/config";
+import { Select } from "@/components/ui/Select";
 import { fromBaseUnits } from "@/lib/crypto/amount";
 import { ERC20_ABI } from "@/lib/crypto/abi";
 import { sendTronTransfer } from "@/lib/crypto/tron-client";
@@ -51,6 +58,48 @@ const DISMISS_GRACE_MS = 3_000;
 
 /** Long enough to outlast any modal session; re-armed to the grace on close. */
 const DISMISS_BLOCK_MS = 600_000;
+
+const FAMILY_LABEL: Record<ChainKind, { name: string; hint: string }> = {
+  evm: { name: "EVM", hint: "Ethereum, Polygon, Base…" },
+  tron: { name: "Tron", hint: "TRC-20" },
+};
+
+function networksOf(kind: ChainKind): NetworkConfig[] {
+  return NETWORK_LIST.filter((n) => n.kind === kind);
+}
+
+function tokensOf(n: NetworkConfig | undefined): TokenInfo[] {
+  return n ? (Object.values(n.tokens).filter(Boolean) as TokenInfo[]) : [];
+}
+
+/** What a chain family + chain + coin selection looks like mid-flight. */
+interface Selection {
+  family: ChainKind | null;
+  netId: string;
+  token: TokenSymbol | null;
+}
+
+/**
+ * Skip the family question when the creator only takes one kind of chain —
+ * a two-card choice with one card is a chore, not a choice.
+ */
+function firstSelection(hasEvm: boolean, hasTron: boolean): Selection {
+  const families = availableFamilies(hasEvm, hasTron);
+  const family = families.length === 1 ? families[0] : null;
+  const net = family ? networksOf(family)[0] : undefined;
+  return {
+    family,
+    netId: net?.id ?? "",
+    token: tokensOf(net)[0]?.symbol ?? null,
+  };
+}
+
+function availableFamilies(hasEvm: boolean, hasTron: boolean): ChainKind[] {
+  const out: ChainKind[] = [];
+  if (hasEvm && networksOf("evm").length) out.push("evm");
+  if (hasTron && networksOf("tron").length) out.push("tron");
+  return out;
+}
 
 function short(addr: string) {
   return addr.length > 12 ? `${addr.slice(0, 6)}…${addr.slice(-4)}` : addr;
@@ -94,6 +143,57 @@ function Stepper({ step }: { step: Step }) {
   );
 }
 
+function ChoiceCard({
+  name,
+  hint,
+  active,
+  onClick,
+}: {
+  name: string;
+  hint: string;
+  active: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      className={`rounded-xl border px-4 py-3 text-left transition ${
+        active
+          ? "border-brand-600 bg-brand-600/10"
+          : "border-border bg-white/[0.02] hover:bg-white/[0.06]"
+      }`}
+      onClick={onClick}
+      aria-pressed={active}
+    >
+      <span className="block font-medium">{name}</span>
+      <span className="mt-0.5 block text-xs text-muted">{hint}</span>
+    </button>
+  );
+}
+
+function TokenChoice({
+  symbol,
+  active,
+  onClick,
+}: {
+  symbol: string;
+  active: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      className={`flex-1 rounded-xl border px-4 py-2.5 text-sm font-medium transition ${
+        active
+          ? "border-brand-600 bg-brand-600/10 text-foreground"
+          : "border-border bg-white/[0.02] text-muted hover:bg-white/[0.06]"
+      }`}
+      onClick={onClick}
+      aria-pressed={active}
+    >
+      {symbol}
+    </button>
+  );
+}
+
 function WalletRow({
   name,
   hint,
@@ -132,18 +232,16 @@ export function CheckoutModal({
   hasEvm: boolean;
   hasTron: boolean;
 }) {
-  const options = useMemo(
-    () =>
-      paymentOptions().filter((o) =>
-        o.network.kind === "tron" ? hasTron : hasEvm,
-      ),
+  const families = useMemo(
+    () => availableFamilies(hasEvm, hasTron),
     [hasEvm, hasTron],
   );
+  const evmNetworks = useMemo(() => networksOf("evm"), []);
 
   const [step, setStep] = useState<Step>(1);
   const [phase, setPhase] = useState<Phase>("steps");
-  const [optionKey, setOptionKey] = useState(
-    options[0] ? `${options[0].network.id}:${options[0].token.symbol}` : "",
+  const [sel, setSel] = useState<Selection>(() =>
+    firstSelection(hasEvm, hasTron),
   );
   const [promo, setPromo] = useState("");
   const [order, setOrder] = useState<OrderResp | null>(null);
@@ -165,10 +263,13 @@ export function CheckoutModal({
   const tron = useTronWallet();
   const env = useWalletEnv();
 
-  const [selNetId, selTok] = optionKey ? optionKey.split(":") : ["", ""];
+  const selNetId = sel.netId;
+  const selTok = sel.token;
   const selectedNetwork = selNetId ? getNetwork(selNetId) : undefined;
+  const tokenChoices = tokensOf(selectedNetwork);
   const isTron = selectedNetwork?.kind === "tron";
   const targetChainId = selectedNetwork?.chainId;
+  const selectionReady = !!(sel.family && selNetId && selTok);
 
   const wrongNetwork =
     !isTron && evmConnected && !!targetChainId && evmChainId !== targetChainId;
@@ -223,14 +324,43 @@ export function CheckoutModal({
   });
 
   // --- actions -------------------------------------------------------------
-  function selectOption(key: string) {
-    setOptionKey(key);
+  /** Any change here invalidates a priced order — it was quoted per chain+coin. */
+  function clearOrder() {
     setOrder(null);
     setMessage("");
   }
 
+  function selectFamily(f: ChainKind) {
+    const net = networksOf(f)[0];
+    setSel({
+      family: f,
+      netId: net?.id ?? "",
+      token: tokensOf(net)[0]?.symbol ?? null,
+    });
+    clearOrder();
+  }
+
+  function selectNet(id: string) {
+    const n = getNetwork(id);
+    setSel((prev) => ({
+      ...prev,
+      netId: id,
+      // Keep their coin if the new chain lists it — not every chain has both.
+      token:
+        prev.token && n?.tokens[prev.token]
+          ? prev.token
+          : (tokensOf(n)[0]?.symbol ?? null),
+    }));
+    clearOrder();
+  }
+
+  function selectToken(t: TokenSymbol) {
+    setSel((prev) => ({ ...prev, token: t }));
+    clearOrder();
+  }
+
   function nextFromNetwork() {
-    if (!optionKey) return;
+    if (!selectionReady) return;
     setMessage("");
     setStep(walletReady ? 3 : 2);
   }
@@ -411,8 +541,11 @@ export function CheckoutModal({
         className="fixed inset-0 z-50 grid place-items-center bg-black/50 p-4"
         onClick={guardedClose}
       >
+        {/* max-h/overflow: the modal is centred in the viewport, so without a
+            ceiling a long step runs off both ends of the screen and the
+            Continue button becomes unreachable. */}
         <div
-          className="card w-full max-w-md p-6"
+          className="card max-h-[85vh] w-full max-w-md overflow-y-auto p-6"
           onClick={(e) => e.stopPropagation()}
           role="dialog"
           aria-modal="true"
@@ -432,46 +565,78 @@ export function CheckoutModal({
             </button>
           </div>
 
-          {options.length === 0 && (
+          {families.length === 0 && (
             <p className="mt-6 text-sm text-danger">
               This creator hasn&apos;t configured a payment wallet yet.
             </p>
           )}
 
-          {phase === "steps" && options.length > 0 && <Stepper step={step} />}
+          {phase === "steps" && families.length > 0 && <Stepper step={step} />}
 
           {/* 1 — NETWORK */}
-          {phase === "steps" && step === 1 && options.length > 0 && (
+          {phase === "steps" && step === 1 && families.length > 0 && (
             <div className="mt-5 space-y-4">
-              <p className="text-sm text-muted">Choose how you want to pay.</p>
-              <ul className="space-y-2">
-                {options.map((o) => {
-                  const key = `${o.network.id}:${o.token.symbol}`;
-                  const active = key === optionKey;
-                  return (
-                    <li key={key}>
-                      <button
-                        className={`flex w-full items-center justify-between rounded-xl border px-4 py-3 text-left transition ${
-                          active
-                            ? "border-brand-600 bg-brand-600/10"
-                            : "border-border bg-white/[0.02] hover:bg-white/[0.06]"
-                        }`}
-                        onClick={() => selectOption(key)}
-                        aria-pressed={active}
-                      >
-                        <span className="font-medium">{o.network.name}</span>
-                        <span className="text-sm text-muted">
-                          {o.token.symbol}
-                        </span>
-                      </button>
-                    </li>
-                  );
-                })}
-              </ul>
+              {families.length > 1 && (
+                <div>
+                  <span className="label">Chain</span>
+                  <div className="mt-1.5 grid grid-cols-2 gap-2">
+                    {families.map((f) => (
+                      <ChoiceCard
+                        key={f}
+                        name={FAMILY_LABEL[f].name}
+                        hint={FAMILY_LABEL[f].hint}
+                        active={sel.family === f}
+                        onClick={() => selectFamily(f)}
+                      />
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Tron has exactly one chain, so asking which is noise. */}
+              {sel.family === "evm" && evmNetworks.length > 1 && (
+                <div>
+                  <label className="label" htmlFor="chain">
+                    Network
+                  </label>
+                  <Select
+                    id="chain"
+                    value={selNetId}
+                    onChange={selectNet}
+                    options={evmNetworks.map((n) => ({
+                      value: n.id,
+                      label: n.name,
+                    }))}
+                  />
+                </div>
+              )}
+
+              {sel.family && tokenChoices.length > 0 && (
+                <div>
+                  <span className="label">Stablecoin</span>
+                  <div className="mt-1.5 flex gap-2">
+                    {tokenChoices.map((t) => (
+                      <TokenChoice
+                        key={t.symbol}
+                        symbol={t.symbol}
+                        active={selTok === t.symbol}
+                        onClick={() => selectToken(t.symbol)}
+                      />
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {!sel.family && (
+                <p className="text-sm text-muted">
+                  Choose a chain to see the coins this creator accepts.
+                </p>
+              )}
+
               <button
                 className="btn-primary btn-lg w-full"
                 onClick={nextFromNetwork}
-                disabled={!optionKey}
+                disabled={!selectionReady}
               >
                 Continue
               </button>
