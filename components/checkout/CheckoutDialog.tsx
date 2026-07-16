@@ -44,6 +44,14 @@ if (projectId) {
     metadata,
     // We only need wallet connections, not email/social login.
     features: { analytics: false, email: false, socials: [] },
+    // The adapter seeds these two SDK connectors whether or not the customer
+    // has anything installed, so the wallet step advertised "Coinbase Wallet"
+    // and "Base Account" to everyone. Our step only lists wallets we can prove
+    // are present; both remain reachable through "All wallets" over
+    // WalletConnect. An installed Coinbase extension still announces itself
+    // over EIP-6963 and is listed on its own merit.
+    enableCoinbase: false,
+    enableBaseAccount: false,
     // Don't hijack the page with a "Switch Network" modal on load when a
     // persisted wallet is on a chain we don't list — we switch to the correct
     // chain at pay time instead.

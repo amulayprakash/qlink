@@ -4,9 +4,6 @@ import { useMemo } from "react";
 import { useConnect, type Connector } from "wagmi";
 import { useWalletEnv } from "./use-wallet-env";
 
-/** AppKit's own connector ids. See @reown/appkit-common ConstantsUtil. */
-const APPKIT_WALLET_CONNECT_ID = "walletConnect";
-const APPKIT_AUTH_ID = "AUTH";
 const GENERIC_INJECTED_ID = "injected";
 
 export interface EvmWalletOptions {
@@ -28,14 +25,24 @@ function rank(c: Connector): number {
 /**
  * The wallet choices worth showing this particular customer.
  *
- * AppKit seeds the wagmi config with a generic `injected` connector, its own
- * `walletConnect` connector, and whatever EIP-6963 announces. Rendering that
- * list raw gives you "MetaMask" next to a duplicate "Browser Wallet", plus a
- * WalletConnect entry that must not be connected to directly — AppKit's
- * connector routes `display_uri` into AppKit's own modal, so calling it
- * ourselves pairs against a QR nobody can see. The caller surfaces it as
- * "All wallets" instead, which opens the AppKit modal properly — and does so
- * unconditionally, which is why nothing here gates on the environment.
+ * This is an allowlist, and deliberately so. Only two kinds of connector prove
+ * a wallet is actually installed:
+ *
+ *   - EIP-6963 announcements. A wallet only announces if it is really there,
+ *     and it tells us its name, so these are listed on their own merit.
+ *   - The generic `injected` shim, but ONLY when `window.ethereum` exists and
+ *     nothing named announced. AppKit seeds this connector on every page, so it
+ *     is otherwise a button that opens nothing — while inside a wallet's in-app
+ *     browser it may be the only handle we get on that wallet.
+ *
+ * Everything else is dropped and reached through "All wallets" instead, which
+ * opens the AppKit modal and lets it choose QR vs deep link. That covers
+ * AppKit's `walletConnect` connector, which must never be connected to directly
+ * — it routes `display_uri` into AppKit's own modal, so calling it ourselves
+ * pairs against a QR nobody can see — as well as its `AUTH` connector and the
+ * Coinbase/Base SDK connectors it seeds regardless of what is installed. The
+ * seeded pair is also switched off at the source in CheckoutDialog; this filter
+ * is the backstop for anything a future AppKit version decides to seed.
  */
 export function useEvmWalletOptions(): EvmWalletOptions {
   const { connectors } = useConnect();
@@ -44,29 +51,31 @@ export function useEvmWalletOptions(): EvmWalletOptions {
   const filtered = useMemo(() => {
     if (!env.ready) return [];
 
-    let list = connectors.filter(
-      (c) => c.id !== APPKIT_WALLET_CONNECT_ID && c.id !== APPKIT_AUTH_ID,
-    );
-
-    // EIP-6963 names the wallet it discovered; the generic shim can't. When
-    // both describe the same extension, keep the one that says "MetaMask".
-    const hasNamed = list.some(
+    const announced = connectors.filter(
       (c) => c.type === "injected" && c.id !== GENERIC_INJECTED_ID,
     );
-    if (hasNamed) {
-      list = list.filter((c) => c.id !== GENERIC_INJECTED_ID);
+
+    let list = announced;
+    if (!announced.length && env.injectedEvm) {
+      const shim = connectors.find((c) => c.id === GENERIC_INJECTED_ID);
+      if (shim) list = [shim];
     }
 
-    // On a plain mobile browser there is no extension to shim, so the generic
-    // injected entry is a button that opens nothing. Inside a wallet's in-app
-    // browser it's the opposite — that entry IS the wallet — so it stays.
-    if (env.mobile && !env.injectedEvm) {
-      list = list.filter((c) => c.id !== GENERIC_INJECTED_ID);
-    }
-
-    return [...list].sort(
+    list = [...list].sort(
       (a, b) => rank(a) - rank(b) || a.name.localeCompare(b.name),
     );
+
+    // Two extensions can announce under different rdns and still render the
+    // same name — a wallet shipping a compatibility provider next to its own is
+    // enough to do it. The customer reads two identical rows and cannot tell
+    // which is which, so keep the better-ranked one and drop the rest.
+    const seen = new Set<string>();
+    return list.filter((c) => {
+      const key = c.name.trim().toLowerCase();
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
   }, [connectors, env]);
 
   return { connectors: filtered, ready: env.ready };
