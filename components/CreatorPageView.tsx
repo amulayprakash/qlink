@@ -6,7 +6,6 @@ import { LinksSection } from "@/components/page/LinksSection";
 import { PackagesSection, type PagePackage } from "@/components/page/PackagesSection";
 import { PromoSection } from "@/components/page/PromoSection";
 import { PromoProvider } from "@/components/page/promo-context";
-import { Logo } from "@/components/Logo";
 import { ShareButton } from "@/components/page/ShareButton";
 import { PlatformIcon } from "@/components/PlatformIcon";
 import { pageTheme, themeOverrideStyle, wallpaperCss } from "@/lib/themes";
@@ -171,8 +170,7 @@ export function CreatorPageView({
       )}
 
       <div className="relative mx-auto w-full max-w-xl px-5 pt-5 pb-14">
-        <div className="flex items-center justify-between">
-          <Logo tone="page" />
+        <div className="flex items-center justify-end">
           {!preview && <ShareButton title={name} />}
         </div>
 
