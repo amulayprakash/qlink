@@ -95,6 +95,16 @@ h4 {
   --page-radius: 9999px;
   --page-font: var(--font-geist-sans);
 
+  /* Error text on --page-bg. A token per preset rather than the app's
+     --color-danger, which was picked against a near-black canvas and does not
+     travel: #fb7185 lands at 2.9:1 on mocha, 3.8:1 on cobalt and 2.4:1 on
+     paper. (Forest squeaks by at 4.6:1 and is overridden anyway — one error
+     colour that holds across the four non-default presets beats a table where
+     one row is a coincidence.) Unlike the accent this is ours, not the
+     creator's, so it is settled here rather than gated at save time.
+     `default` keeps the app's exact hex, at 7.4:1. */
+  --page-danger: #fb7185;
+
   /* The two surfaces that are TRANSLUCENT rather than painted: the package card
      and the round icon button. Derived from --page-fg/--page-bg rather than
      listed per preset, so they follow every theme (and every future one) with no
@@ -122,6 +132,7 @@ h4 {
   --page-accent: #f0a868;
   --page-accent-fg: #241812;
   --page-ring: #ffffff;
+  --page-danger: #ffc9ce; /* 5.3:1 on #6f4a3c */
 }
 
 [data-page-theme="forest"] {
@@ -134,6 +145,7 @@ h4 {
   --page-accent: #e8b04b;
   --page-accent-fg: #1a1206;
   --page-ring: #f2efe6;
+  --page-danger: #ffc9ce; /* 8.5:1 on #1e3a2f */
 }
 
 [data-page-theme="cobalt"] {
@@ -146,6 +158,7 @@ h4 {
   --page-accent: #ffd166;
   --page-accent-fg: #1a1405;
   --page-ring: #ffffff;
+  --page-danger: #ffc9ce; /* 7.1:1 on #1b3a8f */
 }
 
 [data-page-theme="paper"] {
@@ -158,6 +171,7 @@ h4 {
   --page-accent: #17161a;
   --page-accent-fg: #f7f6f3;
   --page-ring: #17161a;
+  --page-danger: #b3261e; /* the only light preset: 5.8:1 on #f4f2ed */
 }
 
 [data-page-font="serif"] {
@@ -359,9 +373,14 @@ html:has([data-page-canvas="paper"]) {
       0 24px 60px -24px rgb(0 0 0 / 0.8),
       inset 0 0 0 1px rgb(255 255 255 / 0.07);
   }
+  /* --page-viewport is the frame telling the page inside it that THIS, not the
+     window, is the box to size a viewport-sized layer against. Declared as the
+     height rather than beside it, so the two cannot drift. See .page-wallpaper,
+     its only consumer. */
   .phone-screen {
     @apply relative overflow-y-auto overscroll-contain rounded-[1.6rem];
-    height: min(640px, calc(100dvh - 13rem));
+    --page-viewport: min(640px, calc(100dvh - 13rem));
+    height: var(--page-viewport);
     scrollbar-width: none;
   }
   .phone-screen::-webkit-scrollbar {
@@ -394,18 +413,37 @@ html:has([data-page-canvas="paper"]) {
      Rendered only when the creator set one, so a page with no wallpaper carries
      no extra element and no extra paint.
 
-     absolute inset-0 against the .page-surface wrapper, which is min-h-dvh and
-     grows with the content — so `cover` spans the whole scroll height rather
-     than just the first viewport. background-attachment is deliberately NOT
-     fixed: it is what breaks on iOS Safari, and a photo that stays still while
-     the pills scroll over it reads as a bug rather than as parallax.
+     Sized to the VIEWPORT, not to the page. This layer used to be absolute
+     inset-0 against .page-surface, which grows with its content — so `cover`
+     re-fitted the photo to a different box every time the page got taller, and
+     opening the packages disclosure visibly rescaled and re-cropped it. The
+     crop has to depend on something the visitor is not changing, and the
+     viewport is the only such box.
+
+     sticky, not fixed, so ONE rule serves both callers: on the public route the
+     scrollport is the viewport, and in the editor the scrollport is
+     .phone-screen, where a fixed layer would escape the phone frame and cover
+     the dashboard. It is in flow, so it claims its own height and then gives it
+     straight back with the negative margin — the content below starts at the
+     top of the page, as it did when this was absolute.
+
+     --page-viewport is how a scrollport that is not the window says so;
+     .phone-screen sets it to its own height. Unset everywhere else, hence the
+     100dvh fallback rather than a value on .page-surface, which would shadow
+     what .phone-screen passes down.
+
+     The photo is therefore still while the page scrolls over it. That is the
+     cost of a stable crop and it is deliberate — an earlier revision of this
+     comment argued the opposite, before the rescale was understood.
 
      `background-color: var(--page-bg)` is the underlay, not decoration: a photo
      that is still loading, 404s, or has an alpha channel would otherwise show
      whatever is behind the page — on the public route, the browser's own white. */
   .page-wallpaper {
-    position: absolute;
-    inset: 0;
+    position: sticky;
+    top: 0;
+    height: var(--page-viewport, 100dvh);
+    margin-bottom: calc(-1 * var(--page-viewport, 100dvh));
     background-color: var(--page-bg);
     background-image: var(--page-wallpaper);
     background-position: center;
@@ -484,6 +522,149 @@ html:has([data-page-canvas="paper"]) {
     background: var(--page-accent);
     color: var(--page-accent-fg);
     outline-color: var(--page-ring);
+  }
+
+  /* --- Checkout, on a creator page ------------------------------------------
+     The checkout modal paints from --page-* rather than from .card/.btn-primary
+     for one reason: accentIsUsable() checks a creator's accent against
+     --page-bg and against nothing else. Put that accent on the app's near-black
+     card and the guarantee is void — paper's accent is #17161a, which simply
+     does not exist on #141418, and any dark custom accent does the same. The
+     accent has to land on the canvas it was verified against.
+
+     So these mirror the .btn-*, .card and .input families one-for-one in the
+     page namespace. They are NOT a general-purpose kit: everything here exists
+     because CheckoutModal needs it, and it inherits its tokens from the
+     [data-page-theme] wrapper it renders inside (fixed position escapes layout,
+     not inheritance — see the note at the top of this file). */
+  .page-modal {
+    @apply rounded-3xl;
+    background: var(--page-bg);
+    border: 1px solid var(--page-card-border);
+    color: var(--page-fg);
+    box-shadow: 0 24px 60px -24px rgb(0 0 0 / 0.7);
+  }
+
+  /* Bordered box inside a page modal: choice cards, wallet rows, summaries.
+     Corners rather than --page-radius on purpose — the radius token is the
+     PILL, and these hold two lines of left-aligned text. */
+  .page-panel {
+    @apply rounded-xl;
+    border: 1px solid var(--page-card-border);
+    background: var(--page-card-bg);
+  }
+  .page-panel-hover:hover {
+    background: var(--page-chip-bg);
+  }
+  /* Selected. The accent carries the whole "on" signal, which is exactly the
+     3:1-against-the-canvas that accentIsUsable buys. Keyed off aria-pressed
+     because the buttons already have to say that for a screen reader — a
+     second `active` class would be the same state written twice. */
+  .page-panel[aria-pressed="true"] {
+    border-color: var(--page-accent);
+    background: color-mix(in oklab, var(--page-accent) 14%, transparent);
+  }
+
+  .page-accent-wash {
+    background: color-mix(in oklab, var(--page-accent) 12%, transparent);
+  }
+
+  .page-danger-text {
+    color: var(--page-danger);
+  }
+  /* Only ever behind --page-danger-coloured LARGE text (the error glyph). The
+     wash drags the pair down — worst case is 3.9:1, on mocha — which clears 3:1
+     for large text and would not clear 4.5:1 for a sentence. Error prose stays
+     on --page-bg. */
+  .page-danger-wash {
+    background: color-mix(in oklab, var(--page-danger) 15%, transparent);
+  }
+
+  /* Secondary buttons. Both take --page-radius, like .page-cta: a pill Continue
+     over a cornered Back reads as two design systems in one modal. */
+  .page-btn-ghost,
+  .page-btn-outline {
+    @apply flex w-full items-center justify-center px-4 py-2.5 text-sm font-semibold
+      transition-[background-color,opacity] duration-200
+      disabled:cursor-not-allowed disabled:opacity-40
+      focus-visible:outline-2 focus-visible:outline-offset-2;
+    border-radius: var(--page-radius);
+    outline-color: var(--page-ring);
+  }
+  .page-btn-ghost {
+    color: var(--page-muted);
+  }
+  .page-btn-ghost:hover {
+    background: var(--page-chip-bg);
+    color: var(--page-fg);
+  }
+  .page-btn-outline {
+    border: 1px solid var(--page-card-border);
+    color: var(--page-fg);
+  }
+  .page-btn-outline:hover {
+    background: var(--page-chip-bg);
+  }
+
+  .page-input {
+    @apply w-full rounded-xl px-3.5 py-2.5 text-sm outline-none transition;
+    border: 1px solid var(--page-card-border);
+    background: var(--page-card-bg);
+    color: var(--page-fg);
+  }
+  .page-input::placeholder {
+    color: var(--page-muted);
+  }
+  .page-input:focus {
+    border-color: var(--page-accent);
+    background: var(--page-chip-bg);
+  }
+  .page-input:focus-visible {
+    outline: 2px solid var(--page-ring);
+    outline-offset: 2px;
+  }
+
+  .page-label {
+    @apply mb-1.5 block text-sm font-medium;
+    color: var(--page-fg);
+  }
+
+  /* --- Select, page-themed (see components/ui/Select.tsx, tone="page") ------
+     The trigger is not .page-input: it is a <button>, so it needs the hover and
+     the aria-expanded state an input has no concept of. */
+  .page-select {
+    @apply rounded-xl;
+    border: 1px solid var(--page-card-border);
+    background: var(--page-card-bg);
+    color: var(--page-fg);
+  }
+  .page-select:hover {
+    background: var(--page-chip-bg);
+  }
+  .page-select[aria-expanded="true"] {
+    border-color: var(--page-accent);
+    background: var(--page-chip-bg);
+  }
+  .page-select:focus-visible {
+    outline: 2px solid var(--page-ring);
+    outline-offset: 2px;
+  }
+  /* --page-bg, not --page-card-bg, for the same reason PackageDetailModal gives:
+     the card token is ~92% transparent, and a popup floating over the modal has
+     the modal's own text behind it rather than a canvas. */
+  .page-select-list {
+    @apply rounded-xl;
+    border: 1px solid var(--page-card-border);
+    background: var(--page-bg);
+    box-shadow: 0 16px 40px -8px rgb(0 0 0 / 0.6);
+  }
+  .page-select-option[data-active="true"] {
+    background: var(--page-chip-bg);
+  }
+  /* Weight and the tick mark, NOT accent-coloured text: the accent is only
+     guaranteed to 3:1, which is a graphic's threshold, not a label's. */
+  .page-select-option[aria-selected="true"] {
+    @apply font-medium;
   }
 }
 

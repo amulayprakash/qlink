@@ -128,7 +128,11 @@ export function CreatorPageView({
       data-page-wallpaper={config.wallpaper?.kind}
       style={themeOverrideStyle(config)}
       className={[
-        "page-surface relative overflow-hidden",
+        // overflow-clip, not overflow-hidden: both clip the avatar glow the
+        // same way, but `hidden` makes this a scroll container, which would
+        // capture the sticky wallpaper below and pin it to a box that never
+        // scrolls — i.e. straight back to the crop moving with the page.
+        "page-surface relative overflow-clip",
         // min-h-dvh is the viewport even when the component is rendered into a
         // 640px phone frame, which would hang ~40% dead space under a short
         // page. In a preview the CONTAINER owns the height.
@@ -143,7 +147,9 @@ export function CreatorPageView({
 
       {/* First child, so everything below paints over it. It needs no z-index
           to stay behind: the content wrapper further down is `relative`, and a
-          positioned element beats a non-positioned one at equal z-index. */}
+          positioned element beats a non-positioned one at equal z-index. Also
+          why it must stay first — the layer is sticky, so it is positioned too,
+          and moving it after the content would put the photo over the page. */}
       {wallpaper && <div aria-hidden="true" className="page-wallpaper" />}
 
       {/* Soft glow behind the avatar, in the page's own accent rather than the

@@ -25,6 +25,61 @@ export type SelectOption = {
    options are <li> with a mousedown preventDefault rather than buttons — they
    must never take focus, or the trigger's keyboard handling goes with it.
    ========================================================================== */
+
+/**
+ * Which colour system to paint from. `app` is the dark dashboard; `page` reads
+ * the creator's --page-* tokens and is only correct inside a [data-page-theme]
+ * subtree. The behaviour, the ARIA and the keyboard model are identical — this
+ * splits the palette and nothing else, which is why it is a prop rather than a
+ * second component.
+ */
+export type SelectTone = "app" | "page";
+
+/** Palette per tone. The `page` classes live in globals.css next to .page-cta,
+ *  because they need :hover and [aria-expanded] states that utilities on a
+ *  conditional string can express but not as legibly. */
+const TONES: Record<
+  SelectTone,
+  {
+    trigger: string;
+    triggerOpen: string;
+    triggerClosed: string;
+    list: string;
+    option: string;
+    optionActive: string;
+    optionSelected: string;
+    optionRest: string;
+    muted: string;
+    check: string;
+  }
+> = {
+  app: {
+    trigger: "rounded-xl border bg-white/[0.03] text-foreground",
+    triggerOpen: "border-brand-500 bg-white/[0.05] ring-2 ring-brand-600/25",
+    triggerClosed:
+      "border-border hover:border-white/20 hover:bg-white/[0.05] focus-visible:border-brand-500 focus-visible:ring-2 focus-visible:ring-brand-600/25",
+    list: "rounded-xl border border-white/10 bg-card shadow-[0_16px_40px_-8px_rgb(0_0_0/0.7)]",
+    option: "",
+    optionActive: "bg-white/[0.07]",
+    optionSelected: "font-medium text-brand-700",
+    optionRest: "text-foreground",
+    muted: "text-muted",
+    check: "text-brand-600",
+  },
+  page: {
+    trigger: "page-select",
+    triggerOpen: "",
+    triggerClosed: "",
+    list: "page-select-list",
+    option: "page-select-option",
+    optionActive: "",
+    optionSelected: "",
+    optionRest: "",
+    muted: "page-muted",
+    check: "page-accent-text",
+  },
+};
+
 export function Select({
   value,
   onChange,
@@ -34,6 +89,7 @@ export function Select({
   className = "",
   disabled = false,
   size = "md",
+  tone = "app",
   ariaLabel,
 }: {
   value: string;
@@ -45,8 +101,10 @@ export function Select({
   disabled?: boolean;
   /** `sm` matches the compact editor rows; `md` matches `.input`. */
   size?: "sm" | "md";
+  tone?: SelectTone;
   ariaLabel?: string;
 }) {
+  const t = TONES[tone];
   const generatedId = useId();
   const rootId = id ?? generatedId;
   const listId = `${rootId}-listbox`;
@@ -195,25 +253,21 @@ export function Select({
         disabled={disabled || options.length === 0}
         onClick={() => (open ? setOpen(false) : openList())}
         onKeyDown={onKeyDown}
-        className={`flex w-full items-center justify-between gap-2 rounded-xl border
-          bg-white/[0.03] text-left text-foreground
-          outline-none transition select-none
+        className={`flex w-full items-center justify-between gap-2
+          text-left outline-none transition select-none
           disabled:cursor-not-allowed disabled:opacity-40
           ${size === "sm" ? "px-2.5 py-1.5 text-xs" : "px-3.5 py-2.5 text-sm"}
-          ${
-            open
-              ? "border-brand-500 bg-white/[0.05] ring-2 ring-brand-600/25"
-              : "border-border hover:border-white/20 hover:bg-white/[0.05] focus-visible:border-brand-500 focus-visible:ring-2 focus-visible:ring-brand-600/25"
-          }`}
+          ${t.trigger}
+          ${open ? t.triggerOpen : t.triggerClosed}`}
       >
-        <span className={`truncate ${selected ? "" : "text-muted"}`}>
+        <span className={`truncate ${selected ? "" : t.muted}`}>
           {selected?.label ?? placeholder}
         </span>
         <span className="flex shrink-0 items-center gap-2">
           {selected?.hint && (
-            <span className="text-xs text-muted">{selected.hint}</span>
+            <span className={`text-xs ${t.muted}`}>{selected.hint}</span>
           )}
-          <Chevron open={open} />
+          <Chevron open={open} muted={t.muted} />
         </span>
       </button>
 
@@ -223,9 +277,8 @@ export function Select({
           id={listId}
           role="listbox"
           aria-label={ariaLabel}
-          className="absolute z-50 mt-2 max-h-64 w-full min-w-max overflow-y-auto
-            rounded-xl border border-white/10 bg-card p-1
-            shadow-[0_16px_40px_-8px_rgb(0_0_0/0.7)]"
+          className={`absolute z-50 mt-2 max-h-64 w-full min-w-max overflow-y-auto p-1
+            ${t.list}`}
         >
           {options.map((option, i) => {
             const isSelected = option.value === value;
@@ -237,6 +290,8 @@ export function Select({
                 role="option"
                 aria-selected={isSelected}
                 aria-disabled={option.disabled || undefined}
+                // Read by the `page` tone's CSS, which cannot see `active`.
+                data-active={i === active && !option.disabled}
                 // Keeps focus (and therefore the key handling) on the trigger.
                 onMouseDown={(e) => e.preventDefault()}
                 onPointerEnter={() => !option.disabled && setActive(i)}
@@ -245,15 +300,16 @@ export function Select({
                   rounded-lg transition-colors
                   ${size === "sm" ? "px-2.5 py-1.5 text-xs" : "px-3 py-2 text-sm"}
                   ${option.disabled ? "cursor-not-allowed opacity-40" : ""}
-                  ${i === active && !option.disabled ? "bg-white/[0.07]" : ""}
-                  ${isSelected ? "font-medium text-brand-700" : "text-foreground"}`}
+                  ${t.option}
+                  ${i === active && !option.disabled ? t.optionActive : ""}
+                  ${isSelected ? t.optionSelected : t.optionRest}`}
               >
                 <span className="truncate">{option.label}</span>
                 <span className="flex shrink-0 items-center gap-2">
                   {option.hint && (
-                    <span className="text-xs text-muted">{option.hint}</span>
+                    <span className={`text-xs ${t.muted}`}>{option.hint}</span>
                   )}
-                  <Check visible={isSelected} />
+                  <Check visible={isSelected} className={t.check} />
                 </span>
               </li>
             );
@@ -264,12 +320,12 @@ export function Select({
   );
 }
 
-function Chevron({ open }: { open: boolean }) {
+function Chevron({ open, muted }: { open: boolean; muted: string }) {
   return (
     <svg
       viewBox="0 0 16 16"
       aria-hidden="true"
-      className={`h-4 w-4 text-muted transition-transform duration-200 ${
+      className={`h-4 w-4 transition-transform duration-200 ${muted} ${
         open ? "-rotate-180" : ""
       }`}
     >
@@ -285,12 +341,12 @@ function Chevron({ open }: { open: boolean }) {
   );
 }
 
-function Check({ visible }: { visible: boolean }) {
+function Check({ visible, className }: { visible: boolean; className: string }) {
   return (
     <svg
       viewBox="0 0 16 16"
       aria-hidden="true"
-      className={`h-3.5 w-3.5 ${visible ? "text-brand-600" : "invisible"}`}
+      className={`h-3.5 w-3.5 ${visible ? className : "invisible"}`}
     >
       <path
         d="M3 8.5l3.5 3.5L13 5"

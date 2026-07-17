@@ -128,11 +128,15 @@ function Stepper({ step }: { step: Step }) {
             aria-current={n === step ? "step" : undefined}
           >
             <span
-              className={`h-1 rounded-full ${reached ? "bg-brand-600" : "bg-white/10"}`}
+              className={`h-1 rounded-full ${
+                reached
+                  ? "bg-[var(--page-accent)]"
+                  : "bg-[var(--page-card-border)]"
+              }`}
             />
             <span
               className={`text-[11px] ${
-                n === step ? "font-medium text-foreground" : "text-muted"
+                n === step ? "font-medium" : "page-muted"
               }`}
             >
               {label}
@@ -155,18 +159,16 @@ function ChoiceCard({
   active: boolean;
   onClick: () => void;
 }) {
+  // The accent-on state is painted by .page-panel[aria-pressed="true"], which
+  // reads the attribute this already has to set for a screen reader.
   return (
     <button
-      className={`rounded-xl border px-4 py-3 text-left transition ${
-        active
-          ? "border-brand-600 bg-brand-600/10"
-          : "border-border bg-white/[0.02] hover:bg-white/[0.06]"
-      }`}
+      className="page-panel page-panel-hover px-4 py-3 text-left transition"
       onClick={onClick}
       aria-pressed={active}
     >
       <span className="block font-medium">{name}</span>
-      <span className="mt-0.5 block text-xs text-muted">{hint}</span>
+      <span className="page-muted mt-0.5 block text-xs">{hint}</span>
     </button>
   );
 }
@@ -182,11 +184,8 @@ function TokenChoice({
 }) {
   return (
     <button
-      className={`flex-1 rounded-xl border px-4 py-2.5 text-sm font-medium transition ${
-        active
-          ? "border-brand-600 bg-brand-600/10 text-foreground"
-          : "border-border bg-white/[0.02] text-muted hover:bg-white/[0.06]"
-      }`}
+      className={`page-panel page-panel-hover flex-1 px-4 py-2.5 text-sm font-medium
+        transition ${active ? "" : "page-muted"}`}
       onClick={onClick}
       aria-pressed={active}
     >
@@ -208,12 +207,12 @@ function WalletRow({
 }) {
   return (
     <button
-      className="flex w-full items-center justify-between rounded-xl border border-border bg-white/[0.02] px-4 py-3 text-left transition hover:bg-white/[0.06] disabled:opacity-50"
+      className="page-panel page-panel-hover flex w-full items-center justify-between px-4 py-3 text-left transition disabled:opacity-50"
       onClick={onClick}
       disabled={busy}
     >
       <span className="font-medium">{name}</span>
-      <span className="text-sm text-muted">
+      <span className="page-muted text-sm">
         {busy ? "Connecting…" : (hint ?? "")}
       </span>
     </button>
@@ -557,14 +556,14 @@ export function CheckoutModal({
   return (
     <>
       <div
-        className="fixed inset-0 z-50 grid place-items-center bg-black/50 p-4"
+        className="fixed inset-0 z-50 grid place-items-center bg-black/60 p-4 backdrop-blur-sm"
         onClick={guardedClose}
       >
         {/* max-h/overflow: the modal is centred in the viewport, so without a
             ceiling a long step runs off both ends of the screen and the
             Continue button becomes unreachable. */}
         <div
-          className="card max-h-[85vh] w-full max-w-md overflow-y-auto p-6"
+          className="page-modal max-h-[85vh] w-full max-w-md overflow-y-auto p-6"
           onClick={(e) => e.stopPropagation()}
           role="dialog"
           aria-modal="true"
@@ -573,10 +572,10 @@ export function CheckoutModal({
           <div className="flex items-start justify-between">
             <div>
               <h2 className="text-lg font-bold">{pkg.name}</h2>
-              <p className="text-sm text-muted">Complete your purchase</p>
+              <p className="page-muted text-sm">Complete your purchase</p>
             </div>
             <button
-              className="btn-ghost px-2"
+              className="page-icon-btn h-8 w-8 shrink-0"
               onClick={onClose}
               aria-label="Close"
             >
@@ -585,7 +584,7 @@ export function CheckoutModal({
           </div>
 
           {families.length === 0 && (
-            <p className="mt-6 text-sm text-danger">
+            <p className="page-danger-text mt-6 text-sm">
               This creator hasn&apos;t configured a payment wallet yet.
             </p>
           )}
@@ -597,7 +596,7 @@ export function CheckoutModal({
             <div className="mt-5 space-y-4">
               {families.length > 1 && (
                 <div>
-                  <span className="label">Chain</span>
+                  <span className="page-label">Chain</span>
                   <div className="mt-1.5 grid grid-cols-2 gap-2">
                     {families.map((f) => (
                       <ChoiceCard
@@ -615,11 +614,12 @@ export function CheckoutModal({
               {/* Tron has exactly one chain, so asking which is noise. */}
               {sel.family === "evm" && evmNetworks.length > 1 && (
                 <div>
-                  <label className="label" htmlFor="chain">
+                  <label className="page-label" htmlFor="chain">
                     Network
                   </label>
                   <Select
                     id="chain"
+                    tone="page"
                     value={selNetId}
                     onChange={selectNet}
                     options={evmNetworks.map((n) => ({
@@ -632,7 +632,7 @@ export function CheckoutModal({
 
               {sel.family && tokenChoices.length > 0 && (
                 <div>
-                  <span className="label">Stablecoin</span>
+                  <span className="page-label">Stablecoin</span>
                   <div className="mt-1.5 flex gap-2">
                     {tokenChoices.map((t) => (
                       <TokenChoice
@@ -647,13 +647,13 @@ export function CheckoutModal({
               )}
 
               {!sel.family && (
-                <p className="text-sm text-muted">
+                <p className="page-muted text-sm">
                   Choose a chain to see the coins this creator accepts.
                 </p>
               )}
 
               <button
-                className="btn-primary btn-lg w-full"
+                className="page-cta"
                 onClick={nextFromNetwork}
                 disabled={!selectionReady}
               >
@@ -667,15 +667,15 @@ export function CheckoutModal({
             <div className="mt-5 space-y-3">
               {wrongNetwork ? (
                 <>
-                  <p className="text-sm text-muted">
+                  <p className="page-muted text-sm">
                     Your wallet is on a different network. Switch to{" "}
-                    <span className="font-medium text-foreground">
+                    <span className="font-medium text-[var(--page-fg)]">
                       {selectedNetwork?.name}
                     </span>{" "}
                     to continue.
                   </p>
                   <button
-                    className="btn-primary btn-lg w-full"
+                    className="page-cta"
                     onClick={doSwitch}
                     disabled={switching}
                   >
@@ -686,7 +686,7 @@ export function CheckoutModal({
                 </>
               ) : isTron ? (
                 <>
-                  <p className="text-sm text-muted">
+                  <p className="page-muted text-sm">
                     Connect a Tron wallet to pay.
                   </p>
                   {(!env.mobile || env.injectedTron) && (
@@ -706,7 +706,7 @@ export function CheckoutModal({
                 </>
               ) : (
                 <>
-                  <p className="text-sm text-muted">
+                  <p className="page-muted text-sm">
                     Connect a wallet on {selectedNetwork?.name}.
                   </p>
                   {evmConnectors.map((c) => (
@@ -728,9 +728,9 @@ export function CheckoutModal({
               )}
 
               {walletError && (
-                <p className="text-sm text-danger">{walletError}</p>
+                <p className="page-danger-text text-sm">{walletError}</p>
               )}
-              <button className="btn-ghost w-full" onClick={() => setStep(1)}>
+              <button className="page-btn-ghost" onClick={() => setStep(1)}>
                 Back
               </button>
             </div>
@@ -739,15 +739,15 @@ export function CheckoutModal({
           {/* 3 — AMOUNT */}
           {phase === "steps" && step === 3 && (
             <div className="mt-5 space-y-4">
-              <div className="rounded-xl border border-border bg-white/[0.02] px-4 py-3 text-sm">
+              <div className="page-panel px-4 py-3 text-sm">
                 <div className="flex items-center justify-between">
-                  <span className="text-muted">Paying with</span>
+                  <span className="page-muted">Paying with</span>
                   <span className="font-medium">
                     {selectedNetwork?.name} · {selTok}
                   </span>
                 </div>
                 <div className="mt-1 flex items-center justify-between">
-                  <span className="text-muted">Wallet</span>
+                  <span className="page-muted">Wallet</span>
                   <span className="font-medium">
                     {activeAddress ? short(activeAddress) : "—"}
                   </span>
@@ -755,34 +755,30 @@ export function CheckoutModal({
               </div>
 
               <div>
-                <label className="label" htmlFor="promo">
+                <label className="page-label" htmlFor="promo">
                   Promo code (optional)
                 </label>
                 <input
                   id="promo"
-                  className="input uppercase"
+                  className="page-input uppercase"
                   placeholder="Have a code?"
                   value={promo}
                   onChange={(e) => setPromo(e.target.value)}
                 />
-                <p className="hint">
+                <p className="page-muted mt-1 text-xs">
                   Got a creator code? Enter it for a discount.
                 </p>
               </div>
 
-              <div className="flex items-center justify-between border-t border-border pt-3">
-                <span className="text-sm text-muted">Price</span>
+              <div className="flex items-center justify-between border-t border-[var(--page-card-border)] pt-3">
+                <span className="page-muted text-sm">Price</span>
                 <span className="text-lg font-bold">${pkg.price_usd}</span>
               </div>
 
-              <button
-                className="btn-primary btn-lg w-full"
-                onClick={createOrder}
-                disabled={busy}
-              >
+              <button className="page-cta" onClick={createOrder} disabled={busy}>
                 {busy ? "Preparing…" : "Continue"}
               </button>
-              <button className="btn-ghost w-full" onClick={() => setStep(2)}>
+              <button className="page-btn-ghost" onClick={() => setStep(2)}>
                 Back
               </button>
             </div>
@@ -791,21 +787,25 @@ export function CheckoutModal({
           {/* 4 — CONFIRM */}
           {phase === "steps" && step === 4 && order && (
             <div className="mt-5 space-y-4">
-              <div className="rounded-xl bg-brand-50 p-4">
+              <div className="page-accent-wash rounded-xl p-4">
                 <div className="flex items-baseline justify-between">
-                  <span className="text-sm text-muted">You pay</span>
+                  <span className="page-muted text-sm">You pay</span>
                   <span className="text-2xl font-bold">
                     {tokenAmount} {order.tokenSymbol}
                   </span>
                 </div>
-                <div className="mt-1 flex items-baseline justify-between text-xs text-muted">
+                <div className="page-muted mt-1 flex items-baseline justify-between text-xs">
                   <span>
                     {order.promoApplied ? (
                       <>
                         <span className="line-through">
                           ${order.originalUsd}
                         </span>{" "}
-                        <span className="font-medium text-accent">
+                        {/* Weight, not .page-accent-text: this sits ON the
+                            accent wash, and an accent is only guaranteed 3:1
+                            against the bare canvas — nowhere near a label's
+                            4.5:1 once the wash has closed the gap. */}
+                        <span className="font-medium text-[var(--page-fg)]">
                           −{order.discountPct}% applied
                         </span>
                       </>
@@ -817,7 +817,7 @@ export function CheckoutModal({
                 </div>
               </div>
 
-              <p className="text-xs text-muted">
+              <p className="page-muted text-xs">
                 Funds go directly to the creator on{" "}
                 <span className="font-medium">{selectedNetwork?.name}</span>. We
                 verify the transaction on-chain. Keep this window open until it
@@ -826,7 +826,7 @@ export function CheckoutModal({
 
               {wrongNetwork ? (
                 <button
-                  className="btn-primary btn-lg w-full"
+                  className="page-cta"
                   onClick={doSwitch}
                   disabled={switching}
                 >
@@ -836,7 +836,7 @@ export function CheckoutModal({
                 </button>
               ) : (
                 <button
-                  className="btn-primary btn-lg w-full"
+                  className="page-cta"
                   onClick={pay}
                   disabled={busy || !walletReady}
                 >
@@ -846,8 +846,8 @@ export function CheckoutModal({
                 </button>
               )}
 
-              {message && <p className="text-sm text-danger">{message}</p>}
-              <button className="btn-ghost w-full" onClick={() => setStep(3)}>
+              {message && <p className="page-danger-text text-sm">{message}</p>}
+              <button className="page-btn-ghost" onClick={() => setStep(3)}>
                 Back
               </button>
             </div>
@@ -856,9 +856,9 @@ export function CheckoutModal({
           {/* VERIFYING */}
           {phase === "verifying" && (
             <div className="mt-6 flex flex-col items-center gap-3 py-6 text-center">
-              <div className="h-8 w-8 animate-spin rounded-full border-2 border-white/15 border-t-brand-600" />
+              <div className="h-8 w-8 animate-spin rounded-full border-2 border-[var(--page-card-border)] border-t-[var(--page-accent)]" />
               <p className="font-medium">Confirming your payment…</p>
-              <p className="text-sm text-muted">
+              <p className="page-muted text-sm">
                 {message || "Reading the blockchain…"}
               </p>
             </div>
@@ -867,14 +867,20 @@ export function CheckoutModal({
           {/* SUCCESS */}
           {phase === "success" && (
             <div className="mt-6 flex flex-col items-center gap-2 py-6 text-center">
-              <div className="grid h-12 w-12 place-items-center rounded-full bg-accent/15 text-2xl text-accent">
+              {/* Solid, where the error disc below is a wash. A 12% accent tint
+                  would leave the tick at 3.22:1 on mocha — over the line for
+                  large text, but with nothing left for a creator's own accent,
+                  which only has to clear 3:1 against the bare canvas to be
+                  saved. At full strength the accent carries its own verified
+                  4.5:1 label pair instead, and loud is the right note here. */}
+              <div className="grid h-12 w-12 place-items-center rounded-full bg-[var(--page-accent)] text-2xl text-[var(--page-accent-fg)]">
                 ✓
               </div>
               <p className="text-lg font-bold">Payment confirmed</p>
-              <p className="text-sm text-muted">
+              <p className="page-muted text-sm">
                 Thank you! The creator has been notified of your order.
               </p>
-              <button className="btn-primary mt-3 w-full" onClick={onClose}>
+              <button className="page-cta mt-3" onClick={onClose}>
                 Done
               </button>
             </div>
@@ -883,12 +889,12 @@ export function CheckoutModal({
           {/* ERROR */}
           {phase === "error" && (
             <div className="mt-6 flex flex-col items-center gap-2 py-4 text-center">
-              <div className="grid h-12 w-12 place-items-center rounded-full bg-danger/15 text-2xl text-danger">
+              <div className="page-danger-wash page-danger-text grid h-12 w-12 place-items-center rounded-full text-2xl">
                 !
               </div>
               <p className="font-semibold">Something went wrong</p>
-              <p className="text-sm text-muted">{message}</p>
-              <button className="btn-outline mt-3 w-full" onClick={retry}>
+              <p className="page-muted text-sm">{message}</p>
+              <button className="page-btn-outline mt-3" onClick={retry}>
                 Try again
               </button>
             </div>
