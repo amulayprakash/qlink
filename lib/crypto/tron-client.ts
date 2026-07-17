@@ -111,7 +111,7 @@ async function sendViaWalletConnect(opts: {
     signedApprove as never,
   )) as unknown as { code?: string; message?: string };
   if (receiptApprove?.code) {
-    let detail = receiptApprove.message ?? receiptApprove.code;
+    const detail = receiptApprove.message ?? receiptApprove.code;
     throw new Error(`Tron rejected the approve transaction: ${detail}`);
   }
 
