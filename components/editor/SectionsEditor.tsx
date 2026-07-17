@@ -10,7 +10,6 @@ import {
   CaretUp,
   DotsSixVertical,
   FolderPlus,
-  Gear,
   PencilSimple,
   Plus,
   TrashSimple,
@@ -26,11 +25,10 @@ import {
   type ProfileDraft,
 } from "@/components/editor/TitleBioModal";
 import type { PublicProfile } from "@/components/CreatorPageView";
-import { PAGE_THEMES, PAGE_THEME_IDS, accentIsUsable } from "@/lib/themes";
 import { MAX_LINKS_PER_PAGE, MAX_SECTIONS_PER_PAGE } from "@/lib/validation";
 import type { PageSection } from "@/lib/sections";
 import type { ActionState } from "@/lib/forms";
-import type { Package, PageFontKey } from "@/lib/types";
+import type { Package } from "@/lib/types";
 import {
   editorReducer,
   initEditorState,
@@ -38,7 +36,6 @@ import {
   type EditorAction,
   type EditorLink,
   type EditorSection,
-  type EditorState,
   type NewLinkDraft,
 } from "@/components/editor/state";
 
@@ -80,10 +77,8 @@ export function SectionsEditor({
   publicUrl: string;
   isPublished: boolean;
 }) {
-  const [state, dispatch] = useReducer(
-    editorReducer,
-    undefined,
-    () => initEditorState(sections, profile.theme, profile.theme_config ?? {}),
+  const [state, dispatch] = useReducer(editorReducer, undefined, () =>
+    initEditorState(sections),
   );
   const [saved, formAction, pending] = useActionState<ActionState, FormData>(
     savePage,
@@ -141,14 +136,12 @@ export function SectionsEditor({
   );
   const totalLinks = serialized.reduce((n, s) => n + s.links.length, 0);
 
-  const accentWarning = useMemo(() => {
-    if (!state.config.accent) return null;
-    const r = accentIsUsable(state.config.accent, state.theme);
-    return r.ok ? null : r.reason;
-  }, [state.config.accent, state.theme]);
-
   // The live preview renders the REAL page component off draft state, so it
   // cannot drift from what visitors get.
+  //
+  // theme and theme_config ride along from the server snapshot untouched: this
+  // screen cannot change them any more (/dashboard/design owns them), so the
+  // loaded values are already the current ones.
   const previewProfile: PublicProfile = {
     ...profile,
     // profileDraft, not profile: the modal saves straight to the DB, and this
@@ -157,8 +150,6 @@ export function SectionsEditor({
     display_name: profileDraft.display_name || null,
     bio: profileDraft.bio || null,
     avatar_url: profileDraft.avatar_url || null,
-    theme: state.theme,
-    theme_config: state.config,
   };
   const previewSections: PageSection[] = state.sections.map((s) => ({
     id: s.id,
@@ -311,20 +302,11 @@ export function SectionsEditor({
           </div>
         </DragDropProvider>
 
-        <AppearanceBar
-          state={state}
-          dispatch={dispatch}
-          accentWarning={accentWarning}
-        />
-
         <input
           type="hidden"
           name="sections"
           value={JSON.stringify(serialized)}
         />
-        <input type="hidden" name="theme" value={state.theme} />
-        <input type="hidden" name="font" value={state.config.font ?? "sans"} />
-        <input type="hidden" name="accent" value={state.config.accent ?? ""} />
 
         {saved?.error && (
           <p role="alert" className="text-sm text-danger">
@@ -342,11 +324,7 @@ export function SectionsEditor({
                   ? "Unsaved changes"
                   : ""}
           </span>
-          <button
-            type="submit"
-            className="btn-primary"
-            disabled={pending || !!accentWarning}
-          >
+          <button type="submit" className="btn-primary" disabled={pending}>
             {pending ? "Saving…" : "Save page"}
           </button>
         </div>
@@ -872,108 +850,9 @@ function NudgeButtons({
   );
 }
 
-/**
- * Theme, font and accent.
- *
- * Folded into a native <details> rather than sitting above the links: it is set
- * once and then rarely touched, and the links are what the creator came for.
- * <details> and not a JS disclosure — it costs no state, and the summary gets
- * Enter/Space and the expanded announcement from the UA.
- */
-function AppearanceBar({
-  state,
-  dispatch,
-  accentWarning,
-}: {
-  state: EditorState;
-  dispatch: Dispatch;
-  accentWarning: string | null;
-}) {
-  const accent =
-    state.config.accent ??
-    PAGE_THEMES[state.theme as keyof typeof PAGE_THEMES]?.accent ??
-    "#c5f24e";
-
-  return (
-    <details className="card p-4">
-      <summary className="flex cursor-pointer list-none items-center gap-2 text-sm font-semibold [&::-webkit-details-marker]:hidden">
-        <Gear size={16} weight="bold" />
-        Appearance
-        <span className="ml-auto text-xs font-normal text-muted">
-          {PAGE_THEMES[state.theme as keyof typeof PAGE_THEMES]?.label ??
-            state.theme}
-        </span>
-      </summary>
-
-      <div className="mt-4 space-y-3">
-        <div className="flex flex-wrap items-end gap-4">
-          <div>
-            <label className="label" htmlFor="theme-picker">
-              Theme
-            </label>
-            <Select
-              id="theme-picker"
-              className="w-44"
-              value={state.theme}
-              onChange={(theme) => dispatch({ type: "setTheme", theme })}
-              options={PAGE_THEME_IDS.map((id) => ({
-                value: id,
-                label: PAGE_THEMES[id].label,
-              }))}
-            />
-          </div>
-
-          <div>
-            <label className="label" htmlFor="font-picker">
-              Font
-            </label>
-            <Select
-              id="font-picker"
-              className="w-32"
-              value={state.config.font ?? "sans"}
-              onChange={(font) =>
-                dispatch({ type: "setFont", font: font as PageFontKey })
-              }
-              options={[
-                { value: "sans", label: "Sans" },
-                { value: "serif", label: "Serif" },
-              ]}
-            />
-          </div>
-
-          <div>
-            <label className="label" htmlFor="accent-picker">
-              Accent
-            </label>
-            <div className="flex items-center gap-2">
-              <input
-                id="accent-picker"
-                type="color"
-                className="h-10 w-12 cursor-pointer rounded-lg border border-border bg-transparent"
-                value={accent}
-                onChange={(e) =>
-                  dispatch({ type: "setAccent", accent: e.target.value })
-                }
-              />
-              {state.config.accent && (
-                <button
-                  type="button"
-                  className="btn-ghost text-xs"
-                  onClick={() => dispatch({ type: "setAccent", accent: undefined })}
-                >
-                  Reset
-                </button>
-              )}
-            </div>
-          </div>
-        </div>
-
-        {accentWarning && (
-          <p role="alert" className="text-sm text-danger">
-            {accentWarning}
-          </p>
-        )}
-      </div>
-    </details>
-  );
-}
+/* The Appearance panel that used to live here — theme, font and accent — moved
+   to /dashboard/design, which grew a wallpaper and a button picker and had
+   outgrown a <details> at the bottom of the link editor. It also had to move
+   for a correctness reason: it wrote profiles.theme_config through savePage,
+   and that column is written whole, so the two screens could not both own it.
+   See updateDesign in app/dashboard/actions.ts. */

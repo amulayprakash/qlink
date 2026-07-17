@@ -1,15 +1,17 @@
-import type { ReactNode } from "react";
+import { Fragment, type ReactNode } from "react";
 import { TokenUSDT, TokenUSDC } from "@web3icons/react";
 import { Reveal } from "@/components/motion/Reveal";
 import { Avatar } from "@/components/Avatar";
 import { LinksSection } from "@/components/page/LinksSection";
 import { PackagesSection, type PagePackage } from "@/components/page/PackagesSection";
+import { PromoSection } from "@/components/page/PromoSection";
+import { PromoProvider } from "@/components/page/promo-context";
 import { Logo } from "@/components/Logo";
 import { ShareButton } from "@/components/page/ShareButton";
 import { PlatformIcon } from "@/components/PlatformIcon";
-import { pageTheme, themeOverrideStyle } from "@/lib/themes";
+import { pageTheme, themeOverrideStyle, wallpaperCss } from "@/lib/themes";
 import type { PageLink, PageSection } from "@/lib/sections";
-import type { Package, Profile } from "@/lib/types";
+import type { Profile } from "@/lib/types";
 
 export type PublicProfile = Pick<
   Profile,
@@ -54,7 +56,7 @@ export function CreatorPageView({
   profile: PublicProfile;
   sections: PageSection[];
   packages: PagePackage[];
-  buySlot?: (pkg: Pick<Package, "id" | "name" | "price_usd">) => ReactNode;
+  buySlot?: (pkg: PagePackage) => ReactNode;
   /** Only the real public route sets this. It escalates the theme to <html> so
    *  the iOS overscroll gutter and browser UI match. The previews must not, or
    *  opening Preview would repaint the whole dashboard. */
@@ -92,11 +94,38 @@ export function CreatorPageView({
     ? sections.map((s) => ({ ...s, links: s.links.filter((l) => !isIcon(l)) }))
     : sections;
 
+  /**
+   * Null for the overwhelming majority of pages, which is the point: no
+   * wallpaper means no layer, no extra paint, and markup byte-identical to what
+   * this component rendered before wallpapers existed.
+   *
+   * A plain CSS background-image, NOT next/image. Not because next/image cannot
+   * do it — it documents both `fill` and a getImageProps/image-set() recipe for
+   * exactly this — but because either one buys an optimiser we do not need and
+   * costs things we would rather not pay: images.remotePatterns naming the
+   * Supabase host, a per-request trip through the optimiser on every creator
+   * page, and next/image's own DOM inside a component that has to stay
+   * renderable from both the server graph and the editor's client graph.
+   *
+   * The bytes are handled at the other end instead. lib/image.ts downscales to
+   * 1600px and re-encodes to WebP in the BROWSER before upload, so what sits
+   * behind this url() is ~200-400KB rather than the 8MB that came off the
+   * camera. That fixes the size once, for the storage bill and every visitor,
+   * rather than optimising a huge original forever.
+   */
+  const wallpaper = wallpaperCss(config.wallpaper);
+
   return (
     <div
       data-page-theme={theme.id}
       data-page-canvas={canvas ? theme.id : undefined}
       data-page-font={config.font ?? "sans"}
+      data-page-shape={config.buttonShape ?? "pill"}
+      data-page-buttons={config.buttonFill ?? "fill"}
+      // Drives the translucent surfaces (the package card, the icon buttons) to
+      // go opaque over a photograph. Absent for every other kind, so a page with
+      // no wallpaper — or with a fill or gradient — keeps its frosted glass.
+      data-page-wallpaper={config.wallpaper?.kind}
       style={themeOverrideStyle(config)}
       className={[
         "page-surface relative overflow-hidden",
@@ -112,16 +141,28 @@ export function CreatorPageView({
         <style>{`[data-reveal]{opacity:1!important;transform:none!important}`}</style>
       </noscript>
 
+      {/* First child, so everything below paints over it. It needs no z-index
+          to stay behind: the content wrapper further down is `relative`, and a
+          positioned element beats a non-positioned one at equal z-index. */}
+      {wallpaper && <div aria-hidden="true" className="page-wallpaper" />}
+
       {/* Soft glow behind the avatar, in the page's own accent rather than the
-          app's lime, so a page never shows two accent systems. */}
-      <div
-        aria-hidden="true"
-        className="pointer-events-none absolute inset-x-0 -top-40 mx-auto h-80 w-80 rounded-full opacity-25 blur-[120px]"
-        style={{
-          background:
-            "radial-gradient(circle, var(--page-accent), transparent 70%)",
-        }}
-      />
+          app's lime, so a page never shows two accent systems.
+
+          Suppressed over a photo. Its whole job is to give the flat near-black
+          canvas some depth; a photograph already has depth, and laying an
+          accent-coloured haze over someone's picture reads as a rendering bug
+          rather than as the page's accent. */}
+      {config.wallpaper?.kind !== "image" && (
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-x-0 -top-40 mx-auto h-80 w-80 rounded-full opacity-25 blur-[120px]"
+          style={{
+            background:
+              "radial-gradient(circle, var(--page-accent), transparent 70%)",
+          }}
+        />
+      )}
 
       <div className="relative mx-auto w-full max-w-xl px-5 pt-5 pb-14">
         <div className="flex items-center justify-between">
@@ -144,27 +185,51 @@ export function CreatorPageView({
         </Reveal>
 
         {pillSections.length > 0 && (
-          <div className="mt-8 space-y-3">
-            {pillSections.map((s, i) =>
-              s.kind === "packages" ? (
-                <PackagesSection
-                  key={s.id}
-                  section={s}
-                  packages={packages}
-                  buySlot={buySlot}
-                  delay={i * 0.05}
-                  preview={preview}
-                />
-              ) : (
-                <LinksSection
-                  key={s.id}
-                  section={s}
-                  delay={i * 0.05}
-                  preview={preview}
-                />
-              ),
-            )}
-          </div>
+          /* Wraps the sections rather than the page, per the Next.js guidance
+             to render providers as deep as possible: everything above here is
+             static server output and stays that way. Both ends of the promo
+             value are inside — the input below, and the checkout modal under
+             each buySlot. See promo-context for why this cannot be props. */
+          <PromoProvider>
+            <div className="mt-8 space-y-3">
+              {pillSections.map((s, i) =>
+                s.kind === "packages" ? (
+                  <Fragment key={s.id}>
+                    {/* Immediately above the packages, wherever the creator has
+                        dragged them, rather than in a fixed slot in this file —
+                        section order is data, and a discount that has drifted
+                        away from the thing it discounts is just noise.
+
+                        Gated on there being packages because PackagesSection
+                        renders null without them, and a promo card floating
+                        over nothing to buy would be the only thing left. */}
+                    {packages.length > 0 && (
+                      <PromoSection
+                        code={profile.promo_code}
+                        discountPct={profile.promo_discount_pct}
+                        delay={i * 0.05}
+                        preview={preview}
+                      />
+                    )}
+                    <PackagesSection
+                      section={s}
+                      packages={packages}
+                      buySlot={buySlot}
+                      delay={i * 0.05}
+                      preview={preview}
+                    />
+                  </Fragment>
+                ) : (
+                  <LinksSection
+                    key={s.id}
+                    section={s}
+                    delay={i * 0.05}
+                    preview={preview}
+                  />
+                ),
+              )}
+            </div>
+          </PromoProvider>
         )}
 
         <div className="page-muted mt-14 flex items-center justify-center gap-2 text-center text-xs">

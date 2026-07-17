@@ -151,6 +151,107 @@ export const hexColorSchema = z
   .toLowerCase()
   .regex(/^#[0-9a-f]{6}$/, "Enter a colour like #6f4a3c");
 
+/** Built from the same env var the storage client uses, so a project that moves
+ *  cannot leave the checks below pointing at the old host. */
+const SUPABASE_URL = (process.env.NEXT_PUBLIC_SUPABASE_URL ?? "").replace(
+  /\/$/,
+  "",
+);
+
+/**
+ * A public URL that has to have come from one of OUR storage buckets.
+ *
+ * Two independent guards:
+ *   1. The bucket prefix. This is the one that matters: it is what stops a
+ *      creator from pointing a field we then publish at a host they control.
+ *   2. No quote, paren, backslash or angle bracket. Guard 1 already makes those
+ *      impossible, so this is what keeps that true if guard 1 is ever loosened,
+ *      and it is why a wallpaper is safe to interpolate into a CSS url().
+ *
+ * The env check is deliberately separate from the prefix check rather than
+ * folded into a length test on the prefix: with the var unset the prefix
+ * collapses to a bare path, and "the prefix got suspiciously short" is a
+ * fragile way to notice that. An unset env means trust nothing.
+ */
+function storageUrlSchema(bucket: string, message: string) {
+  const prefix = `${SUPABASE_URL}/storage/v1/object/public/${bucket}/`;
+  return z
+    .string()
+    .trim()
+    .max(500)
+    .refine((v) => !!SUPABASE_URL && v.startsWith(prefix), message)
+    .refine((v) => !/["'()\\<>]/.test(v), "That image URL has invalid characters");
+}
+
+/** A wallpaper's public URL. Unlike every other creator-authored string on the
+ *  page this one is interpolated into a CSS url() — see wallpaperCss — which is
+ *  what makes guard 2 above load-bearing here. */
+export const wallpaperUrlSchema = storageUrlSchema(
+  "wallpapers",
+  "That image did not come from your wallpaper storage",
+);
+
+/**
+ * A share image's public URL.
+ *
+ * Same mechanism, different stake. This one is published as og:image, so an
+ * off-bucket URL would mean the creator gets to choose what image this product
+ * hands to WhatsApp, Slack and X under their own link — content we could
+ * neither see nor take down, because it would not be in our storage. Keeping it
+ * in the bucket is what keeps `delete the object` a remedy that works.
+ */
+export const shareImageUrlSchema = storageUrlSchema(
+  "share-images",
+  "That image did not come from your share image storage",
+);
+
+/** Mirrors the Wallpaper union in lib/types.ts. A discriminated union, so each
+ *  kind parses exactly its own fields and a stale field from a kind the creator
+ *  switched away from is dropped rather than stored forever. */
+export const wallpaperSchema = z.discriminatedUnion("kind", [
+  z.object({ kind: z.literal("fill"), color: hexColorSchema }),
+  z.object({
+    kind: z.literal("gradient"),
+    color: hexColorSchema,
+    color2: hexColorSchema,
+    angle: z.number().int().min(0).max(360).default(160),
+  }),
+  z.object({
+    kind: z.literal("image"),
+    url: wallpaperUrlSchema,
+    /** Un-floored on purpose: a creator may ship a page we would not call
+     *  readable. The editor shows the contrast and suggests the scrim that
+     *  earns AA; it does not veto anything. The default here is only for a
+     *  payload that omits the field — the Design page always sends it. */
+    scrim: z.number().min(0).max(1).default(0.6),
+  }),
+]);
+
+/** Raw upload cap. The bucket enforces this too (0006) — this is only so the
+ *  browser can say so before spending the creator's data on an upload that the
+ *  server is going to reject. */
+export const MAX_WALLPAPER_BYTES = 6 * 1024 * 1024;
+export const WALLPAPER_MIME = ["image/jpeg", "image/png", "image/webp"];
+
+/**
+ * What a creator is allowed to PICK for a share image, which is not what gets
+ * stored: the uploader re-encodes everything to 1200x630 JPEG, so the
+ * share-images bucket accepts image/jpeg alone (0007) and nothing that reaches
+ * it is ever this large.
+ *
+ * So unlike MAX_WALLPAPER_BYTES this cap is not about the upload — it is about
+ * the decode. createImageBitmap on a 100MP camera original is what kills a
+ * phone browser, and that happens before a single byte is sent.
+ */
+export const MAX_SHARE_IMAGE_BYTES = 6 * 1024 * 1024;
+export const SHARE_IMAGE_MIME = ["image/jpeg", "image/png", "image/webp"];
+
+/** The og:image aspect every scraper is built around. Exported because three
+ *  places have to agree on it: the crop, the preview box the creator composes
+ *  against, and the dimensions generateMetadata declares. */
+export const SHARE_IMAGE_W = 1200;
+export const SHARE_IMAGE_H = 630;
+
 export const packageSchema = z.object({
   name: z.string().trim().min(1, "Required").max(80),
   description: z.string().trim().max(600).optional().default(""),

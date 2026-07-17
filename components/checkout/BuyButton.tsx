@@ -2,6 +2,11 @@
 
 import { useState } from "react";
 import dynamic from "next/dynamic";
+import {
+  PackageDetailModal,
+  type PageCreator,
+} from "@/components/page/PackageDetailModal";
+import type { PagePackage } from "@/components/page/PackagesSection";
 
 /**
  * The wallet stack is ~1.5MB of JS and it hangs off this one import.
@@ -24,15 +29,20 @@ const CheckoutDialog = dynamic(() => import("./CheckoutDialog"), {
 
 export function BuyButton({
   pkg,
+  creator,
   hasEvm,
   hasTron,
 }: {
-  pkg: { id: string; name: string; price_usd: number };
+  pkg: PagePackage;
+  creator: PageCreator;
   hasEvm: boolean;
   hasTron: boolean;
 }) {
-  const [open, setOpen] = useState(false);
-  const label = pkg.price_usd % 1 === 0 ? `$${pkg.price_usd}` : `$${pkg.price_usd.toFixed(2)}`;
+  const [detail, setDetail] = useState(false);
+  const [checkout, setCheckout] = useState(false);
+  const label =
+    pkg.price_usd % 1 === 0 ? `$${pkg.price_usd}` : `$${pkg.price_usd.toFixed(2)}`;
+
   return (
     <>
       {/* page-cta, not btn-primary. Motivated: btn-primary is the app's lime,
@@ -40,23 +50,44 @@ export function BuyButton({
           whatever accent the creator's theme sets. */}
       <button
         className="page-cta"
-        onClick={() => setOpen(true)}
-        // Motivated: the chunk is big, so start fetching it on intent rather
-        // than on click — by the time the pointer reaches the button and
-        // presses, the download is usually in flight or done, which buys back
-        // most of what the lazy boundary costs the buyer. Idempotent: the
-        // module cache makes repeat calls free.
-        onPointerEnter={() => void import("./CheckoutDialog")}
-        onFocus={() => void import("./CheckoutDialog")}
+        onClick={() => {
+          setDetail(true);
+          // Prefetch on OPEN rather than on hover of this button. The hover
+          // version predates the detail step and no longer earns its keep: this
+          // button now means "show me what's in it", so hovering it would pull
+          // 1.5MB for everyone browsing the list. A click that opens the detail
+          // is real intent, and the seconds spent reading the modal are enough
+          // to have the chunk cached by the time Subscribe is pressed —
+          // strictly more warning than the old hover gave. Idempotent: the
+          // module cache makes repeat calls free.
+          void import("./CheckoutDialog");
+        }}
       >
-        Buy {label}
+        Subscribe {label}
       </button>
-      {/* Mounted only once opened. Not mounting a closed modal also resets its
-          stage machine between opens, which is what you want anyway. */}
-      {open && (
+
+      {/* Both mounted only once opened. Not mounting a closed modal also resets
+          the checkout's stage machine between opens, which is what you want
+          anyway, and lets the detail modal call showModal() from a mount
+          effect. */}
+      {detail && (
+        <PackageDetailModal
+          pkg={pkg}
+          creator={creator}
+          onClose={() => setDetail(false)}
+          onSubscribe={() => {
+            // Closed, not left open behind: two stacked dialogs would put the
+            // detail's <dialog> in the top layer under the checkout's fixed
+            // overlay, and its focus trap would fight the checkout's.
+            setDetail(false);
+            setCheckout(true);
+          }}
+        />
+      )}
+      {checkout && (
         <CheckoutDialog
-          open={open}
-          onClose={() => setOpen(false)}
+          open={checkout}
+          onClose={() => setCheckout(false)}
           pkg={pkg}
           hasEvm={hasEvm}
           hasTron={hasTron}

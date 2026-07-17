@@ -24,6 +24,7 @@ import { sendTronTransfer } from "@/lib/crypto/tron-client";
 import { useTronWallet } from "@/lib/crypto/use-tron-wallet";
 import { useEvmWalletOptions } from "@/lib/crypto/use-evm-connectors";
 import { useWalletEnv } from "@/lib/crypto/use-wallet-env";
+import { usePromo } from "@/components/page/promo-context";
 import { WalletConnectQRModal } from "./WalletConnectQRModal";
 
 type OrderResp = {
@@ -243,7 +244,15 @@ export function CheckoutModal({
   const [sel, setSel] = useState<Selection>(() =>
     firstSelection(hasEvm, hasTron),
   );
-  const [promo, setPromo] = useState("");
+  // The page's promo section owns this when there is one above us, so a code
+  // entered there is already filled in here and an edit here flows back — the
+  // two inputs are one value rather than two that silently disagree. The local
+  // state is the fallback for a checkout opened outside a creator page, where
+  // there is no provider; see promo-context.
+  const pagePromo = usePromo();
+  const [ownPromo, setOwnPromo] = useState("");
+  const promo = pagePromo?.promo ?? ownPromo;
+  const setPromo = pagePromo?.setPromo ?? setOwnPromo;
   const [order, setOrder] = useState<OrderResp | null>(null);
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);

@@ -1,5 +1,5 @@
 import type { PageSection } from "@/lib/sections";
-import type { PageFontKey, SectionKind, ThemeConfig } from "@/lib/types";
+import type { SectionKind } from "@/lib/types";
 
 export type EditorLink = {
   id: string;
@@ -54,8 +54,6 @@ export type EditorState = {
    * deleted theirs in the old editor. addQuickLink mints one on demand.
    */
   bucketId: string | null;
-  theme: string;
-  config: ThemeConfig;
   dirty: boolean;
 };
 
@@ -82,9 +80,6 @@ export type EditorAction =
   | { type: "reorderLinks"; groups: Record<string, string[]> }
   | { type: "moveLink"; sectionId: string; linkId: string; delta: number }
   | { type: "moveLinkToSection"; fromId: string; toId: string; linkId: string }
-  | { type: "setTheme"; theme: string }
-  | { type: "setFont"; font: PageFontKey }
-  | { type: "setAccent"; accent: string | undefined }
   | { type: "saved" };
 
 /** Client-minted so a new row has a stable id the moment it appears: dnd needs
@@ -95,11 +90,9 @@ export function newId() {
   return crypto.randomUUID();
 }
 
-export function initEditorState(
-  sections: PageSection[],
-  theme: string,
-  config: ThemeConfig,
-): EditorState {
+/** Takes only sections: the theme moved to /dashboard/design, which owns
+ *  profiles.theme_config outright. See updateDesign. */
+export function initEditorState(sections: PageSection[]): EditorState {
   return {
     sections: sections.map((s) => ({
       id: s.id,
@@ -120,8 +113,6 @@ export function initEditorState(
     // hand-edited profile is the untitled section every account is created
     // with.
     bucketId: sections.find((s) => s.kind === "links")?.id ?? null,
-    theme,
-    config,
     dirty: false,
   };
 }
@@ -360,23 +351,6 @@ export function editorReducer(
         }),
       };
     }
-
-    case "setTheme":
-      return { ...state, dirty: true, theme: action.theme };
-
-    case "setFont":
-      return {
-        ...state,
-        dirty: true,
-        config: { ...state.config, font: action.font },
-      };
-
-    case "setAccent":
-      return {
-        ...state,
-        dirty: true,
-        config: { ...state.config, accent: action.accent },
-      };
 
     case "saved":
       return { ...state, dirty: false };

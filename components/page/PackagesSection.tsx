@@ -37,7 +37,7 @@ export function PackagesSection({
 }: {
   section: PageSection;
   packages: PagePackage[];
-  buySlot?: (pkg: Pick<Package, "id" | "name" | "price_usd">) => ReactNode;
+  buySlot?: (pkg: PagePackage) => ReactNode;
   delay?: number;
   preview?: boolean;
 }) {
@@ -93,43 +93,36 @@ export function PackagesSection({
   );
 }
 
+/**
+ * Title and a button, and nothing else on purpose.
+ *
+ * The description and the feature list moved into PackageDetailModal, which the
+ * button opens. Motivated: a page with six packages rendered six stacked
+ * feature lists, and a visitor scanning that list is choosing between titles —
+ * the terms matter once, for the one they picked. The price is not repeated
+ * here either, because the button already carries it.
+ */
 function PackageCard({
   pkg,
   buySlot,
 }: {
   pkg: PagePackage;
-  buySlot?: (pkg: Pick<Package, "id" | "name" | "price_usd">) => ReactNode;
+  buySlot?: (pkg: PagePackage) => ReactNode;
 }) {
-  const features = Array.isArray(pkg.features) ? (pkg.features as string[]) : [];
-
   return (
     <div
       className="p-5"
       style={{
         borderRadius: "1.5rem",
-        background: "color-mix(in oklab, var(--page-fg) 8%, transparent)",
-        border: "1px solid color-mix(in oklab, var(--page-fg) 14%, transparent)",
+        // Tokens rather than literal colours, because an inline style beats
+        // every stylesheet and this card has to be able to go OPAQUE when the
+        // creator puts a photo behind the page — see [data-page-wallpaper] in
+        // globals.css. Identical colours on a page without one.
+        background: "var(--page-card-bg)",
+        border: "1px solid var(--page-card-border)",
       }}
     >
-      <div className="flex items-baseline justify-between gap-3">
-        <h3 className="text-lg font-semibold">{pkg.name}</h3>
-        <span className="page-accent-text whitespace-nowrap text-xl font-bold">
-          {usd(pkg.price_usd)}
-        </span>
-      </div>
-      {pkg.description && (
-        <p className="page-muted mt-1 text-sm">{pkg.description}</p>
-      )}
-      {features.length > 0 && (
-        <ul className="mt-3 space-y-1.5 text-sm">
-          {features.map((f, i) => (
-            <li key={i} className="flex items-start gap-2">
-              <span className="page-accent-text mt-0.5">✓</span>
-              <span className="opacity-90">{f}</span>
-            </li>
-          ))}
-        </ul>
-      )}
+      <h3 className="text-lg font-semibold">{pkg.name}</h3>
       <div className="mt-4">
         {buySlot ? (
           buySlot(pkg)
@@ -139,7 +132,7 @@ function PackageCard({
             disabled
             title="Publish to enable checkout"
           >
-            Buy {usd(pkg.price_usd)}
+            Subscribe {usd(pkg.price_usd)}
           </button>
         )}
       </div>

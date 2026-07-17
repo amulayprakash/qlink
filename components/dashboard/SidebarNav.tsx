@@ -6,6 +6,7 @@ import {
   Eye,
   LinkSimple,
   Package,
+  Palette,
   Receipt,
   Wallet,
 } from "@phosphor-icons/react";
@@ -30,6 +31,7 @@ const GROUPS: {
     label: "My page",
     items: [
       { href: "/dashboard", label: "Links", icon: LinkSimple },
+      { href: "/dashboard/design", label: "Design", icon: Palette },
       { href: "/dashboard/packages", label: "Packages", icon: Package },
       { href: "/dashboard/preview", label: "Preview", icon: Eye },
     ],

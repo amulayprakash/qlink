@@ -94,6 +94,20 @@ h4 {
   --page-ring: #c5f24e;
   --page-radius: 9999px;
   --page-font: var(--font-geist-sans);
+
+  /* The two surfaces that are TRANSLUCENT rather than painted: the package card
+     and the round icon button. Derived from --page-fg/--page-bg rather than
+     listed per preset, so they follow every theme (and every future one) with no
+     second set of hex to keep in step.
+
+     They are tokens at all because of the wallpaper. Mixing into `transparent`
+     means whatever is behind shows through — which is a tasteful frosting over
+     a flat canvas and a legibility hole over a photograph. Naming them lets the
+     [data-page-wallpaper="image"] block below re-mix them into --page-bg
+     instead, which is the SAME colour on a plain page and opaque on a photo. */
+  --page-card-bg: color-mix(in oklab, var(--page-fg) 8%, transparent);
+  --page-card-border: color-mix(in oklab, var(--page-fg) 14%, transparent);
+  --page-chip-bg: color-mix(in oklab, var(--page-fg) 12%, transparent);
 }
 
 /* `default` is byte-identical to the tokens above. Motivated: every creator
@@ -148,6 +162,48 @@ h4 {
 
 [data-page-font="serif"] {
   --page-font: var(--font-page-serif);
+}
+
+/* A photo behind the page turns every translucent surface into a legibility
+   hole: the package card is 92% see-through, so its price and features would
+   sit on the photograph itself rather than on the card, and no amount of scrim
+   fixes that — the scrim is UNDER the card.
+
+   Re-mixing into --page-bg instead of `transparent` makes them opaque at the
+   identical colour they already render as on a flat canvas, so this changes
+   nothing for a page without a photo and cannot drift from the presets.
+
+   Only for kind="image". A fill or a gradient is a flat colour the creator
+   chose, and frosted glass over their own gradient is the effect, not a bug. */
+[data-page-wallpaper="image"] {
+  --page-card-bg: color-mix(in oklab, var(--page-fg) 8%, var(--page-bg));
+  --page-card-border: color-mix(in oklab, var(--page-fg) 14%, var(--page-bg));
+  --page-chip-bg: color-mix(in oklab, var(--page-fg) 12%, var(--page-bg));
+}
+
+/* Button shape and fill. AFTER the [data-page-theme] blocks on purpose: these
+   land on the SAME element and carry the same (0,1,0) specificity, so source
+   order is the whole tiebreak — moved above, a theme's --page-pill-bg would win
+   and "outline" would silently do nothing.
+
+   The radius values are mirrored in BUTTON_SHAPES in lib/themes.ts, for the
+   same reason the theme hex is mirrored: CSS paints, TS labels the picker. */
+[data-page-shape="rounded"] {
+  --page-radius: 0.9rem;
+}
+[data-page-shape="sharp"] {
+  --page-radius: 0;
+}
+
+/* Outline drops the fill and borrows the page's own text colour, rather than
+   naming a colour of its own. Motivated: --page-pill-bg is contrast-checked
+   against --page-pill-fg once per preset; an outline pill has no fill to check
+   against, so the only pairing that stays AA on all five presets — and on top
+   of a wallpaper — is the one the canvas already guarantees. */
+[data-page-buttons="outline"] {
+  --page-pill-bg: transparent;
+  --page-pill-fg: var(--page-fg);
+  --page-pill-border: var(--page-fg);
 }
 
 /* Canvas escalation. Only app/[username]/page.tsx emits data-page-canvas, so
@@ -332,6 +388,49 @@ html:has([data-page-canvas="paper"]) {
     color: var(--page-accent);
   }
 
+  /* --- Wallpaper ------------------------------------------------------------
+     One layer for all three kinds: --page-wallpaper is a background-image, and
+     a solid fill is just a two-stop gradient of one colour (see wallpaperCss).
+     Rendered only when the creator set one, so a page with no wallpaper carries
+     no extra element and no extra paint.
+
+     absolute inset-0 against the .page-surface wrapper, which is min-h-dvh and
+     grows with the content — so `cover` spans the whole scroll height rather
+     than just the first viewport. background-attachment is deliberately NOT
+     fixed: it is what breaks on iOS Safari, and a photo that stays still while
+     the pills scroll over it reads as a bug rather than as parallax.
+
+     `background-color: var(--page-bg)` is the underlay, not decoration: a photo
+     that is still loading, 404s, or has an alpha channel would otherwise show
+     whatever is behind the page — on the public route, the browser's own white. */
+  .page-wallpaper {
+    position: absolute;
+    inset: 0;
+    background-color: var(--page-bg);
+    background-image: var(--page-wallpaper);
+    background-position: center;
+    background-repeat: no-repeat;
+    background-size: cover;
+  }
+
+  /* The scrim. A flat wash of the theme's own background over the photo, so the
+     page keeps ONE colour identity instead of borrowing the photo's.
+
+     Its opacity is the creator's to choose, INCLUDING to zero — the product
+     decision here is that a creator may ship a page we would not call readable.
+     lib/themes.ts#scrimContrast reports what a given scrim actually buys and
+     the Design page shows it, but nothing refuses the save. That is a departure
+     from accentIsUsable, which does refuse; the difference is that an accent's
+     backdrop is knowable server-side and a photo's is not, so a gate here would
+     be theatre — it could only ever measure the scrim, never the picture. */
+  .page-wallpaper::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: var(--page-bg);
+    opacity: var(--page-scrim, 0);
+  }
+
   /* The link pill. ~60px tall to match the reference's generous tap target,
      which also clears the 44px minimum comfortably. */
   .pill {
@@ -369,7 +468,7 @@ html:has([data-page-canvas="paper"]) {
       duration-200 hover:opacity-80
       focus-visible:outline-2 focus-visible:outline-offset-2;
     border-radius: var(--page-radius);
-    background: color-mix(in oklab, var(--page-fg) 12%, transparent);
+    background: var(--page-chip-bg);
     color: var(--page-fg);
     outline-color: var(--page-ring);
   }
@@ -455,6 +554,31 @@ html:has([data-page-canvas="paper"]) {
     transition-duration: 0.001ms !important;
     transition-delay: 0ms !important;
     scroll-behavior: auto !important;
+  }
+
+  /* The scroll reveal, cancelled — the same hook and the same two declarations
+     the <noscript> block in CreatorPageView uses, for the same reason: the
+     element is parked at opacity:0 by an INLINE style and something has to
+     outrank it.
+
+     The rule above cannot do this job. It zeroes durations, and motion does not
+     animate with CSS — it writes inline styles and drives the Web Animations
+     API, neither of which has a transition-duration to zero. Without this a
+     reduced-motion visitor keeps the whole page at opacity 0 until each block
+     scrolls into view, which is worse than the animation they opted out of.
+
+     This is also where reduced motion is handled AT ALL, now that Reveal cannot
+     branch on useReducedMotion() without breaking hydration — the server has no
+     window, so that hook answers differently on each side of the boundary. See
+     the note in components/motion/Reveal.tsx.
+
+     !important is load-bearing twice over: it beats the inline style motion
+     serializes during SSR, and author-!important outranks the animation origin
+     in the cascade, so it also beats the WAAPI animation motion starts after
+     hydration. */
+  [data-reveal] {
+    opacity: 1 !important;
+    transform: none !important;
   }
 }
 

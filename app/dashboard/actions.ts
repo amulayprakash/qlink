@@ -11,8 +11,15 @@ import {
   packagesSchema,
   editorPageSchema,
   hexColorSchema,
+  wallpaperSchema,
+  shareImageUrlSchema,
 } from "@/lib/validation";
-import { accentIsUsable, isPageThemeId } from "@/lib/themes";
+import {
+  accentIsUsable,
+  isButtonFill,
+  isButtonShape,
+  isPageThemeId,
+} from "@/lib/themes";
 import type { ThemeConfig } from "@/lib/types";
 import { isEvmAddress, isTronAddress, normalizeEvmAddress } from "@/lib/crypto/address";
 
@@ -53,11 +60,30 @@ export async function updateUsername(
     .maybeSingle();
   if (taken && taken.id !== userId) return { error: "That username is taken" };
 
+  // Read BEFORE the update, because after it there is no way back to it: this
+  // is the only mutation that moves the page to a different URL, and
+  // revalidatePublic() below can only ever see where the profile is NOW.
+  const { data: before } = await supabase
+    .from("profiles")
+    .select("username")
+    .eq("id", userId)
+    .maybeSingle();
+
   const { error } = await supabase
     .from("profiles")
     .update({ username })
     .eq("id", userId);
   if (error) return { error: error.message };
+
+  // The vacated URL. Now that /[username] is cached (see its `revalidate`),
+  // the entry built under the old name outlives the rename and would keep
+  // serving a live-looking page for up to an hour at an address that no longer
+  // belongs to anyone — and would go on serving it to anyone who claims that
+  // name next. Dropping it makes the old URL 404 on the next request, which is
+  // what it now is.
+  if (before?.username && before.username !== username) {
+    revalidatePath(`/${before.username}`);
+  }
 
   await revalidatePublic(supabase, userId);
   return { ok: true };
@@ -185,7 +211,101 @@ export async function updatePackages(
 }
 
 /**
- * Replace the whole page: sections, their links, and the theme.
+ * Design: the theme preset and everything layered on top of it.
+ *
+ * Owns profiles.theme and profiles.theme_config OUTRIGHT, and is the only thing
+ * that writes either. That is not tidiness — theme_config is a single jsonb
+ * value that has to be written whole, so two actions writing it means whichever
+ * saved last silently erases the other's fields. savePage used to build a fresh
+ * config from its own form and write it, which is exactly that bug: with a
+ * wallpaper in the column, saving a link would have deleted it. See the note
+ * there.
+ *
+ * Every field is re-derived from the form rather than merged into the stored
+ * row, so a field the creator cleared actually clears. The form always posts
+ * all of them.
+ */
+export async function updateDesign(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const { supabase, userId } = await requireUser();
+
+  const theme = String(formData.get("theme") ?? "default");
+  if (!isPageThemeId(theme)) return { error: "Unknown theme" };
+
+  const config: ThemeConfig = {};
+
+  const font = String(formData.get("font") ?? "sans");
+  if (font === "serif" || font === "sans") config.font = font;
+
+  const shape = String(formData.get("button_shape") ?? "");
+  if (isButtonShape(shape)) config.buttonShape = shape;
+
+  const fill = String(formData.get("button_fill") ?? "");
+  if (isButtonFill(fill)) config.buttonFill = fill;
+
+  const accentRaw = String(formData.get("accent") ?? "").trim();
+  if (accentRaw) {
+    const hex = hexColorSchema.safeParse(accentRaw);
+    if (!hex.success) {
+      return { error: hex.error.issues[0]?.message ?? "Invalid colour" };
+    }
+    // The gate that stops an unreadable page being saved. The picker warns in
+    // the browser, but the browser is not a trust boundary.
+    //
+    // Still measured against the PRESET's background, even when a wallpaper is
+    // set and that is no longer what the accent sits on. Kept deliberately: it
+    // is the check this product has always applied, and the alternative — a
+    // gate that pretends to know what an arbitrary photo looks like — would be
+    // less honest than one with a stated blind spot, not more.
+    const usable = accentIsUsable(hex.data, theme);
+    if (!usable.ok) return { error: usable.reason };
+    config.accent = hex.data;
+  }
+
+  const wallpaperRaw = String(formData.get("wallpaper") ?? "").trim();
+  if (wallpaperRaw) {
+    let json: unknown;
+    try {
+      json = JSON.parse(wallpaperRaw);
+    } catch {
+      return { error: "Could not read that wallpaper." };
+    }
+    const parsed = wallpaperSchema.safeParse(json);
+    if (!parsed.success) {
+      return { error: parsed.error.issues[0]?.message ?? "Invalid wallpaper" };
+    }
+    config.wallpaper = parsed.data;
+  }
+
+  // The og:image. Absent means "fall back to the avatar", which is what every
+  // page did before this field existed — so an empty string here is a real
+  // choice the creator can make (the Remove button), not a missing value.
+  const shareImageRaw = String(formData.get("share_image") ?? "").trim();
+  if (shareImageRaw) {
+    const parsed = shareImageUrlSchema.safeParse(shareImageRaw);
+    if (!parsed.success) {
+      return { error: parsed.error.issues[0]?.message ?? "Invalid share image" };
+    }
+    config.shareImage = parsed.data;
+  }
+
+  const { error } = await supabase
+    .from("profiles")
+    .update({ theme, theme_config: config })
+    .eq("id", userId);
+  if (error) return { error: error.message };
+
+  await revalidatePublic(supabase, userId);
+  // The signature rides back out only on success, which is the whole point: it
+  // is the form's proof of WHICH on-screen state the database now holds. Opaque
+  // here on purpose — the client owns the format. See ActionState.signature.
+  return { ok: true, signature: String(formData.get("signature") ?? "") };
+}
+
+/**
+ * Replace the whole page: sections and their links.
  *
  * Sections are UPSERTED by their client-minted id rather than deleted and
  * reinserted like links are. Motivated: links carry a composite fk to
@@ -196,6 +316,13 @@ export async function updatePackages(
  * There is no transaction (supabase-js has none), so the order matters: write
  * sections before the links that reference them, and prune sections last, once
  * nothing points at them.
+ *
+ * Touches NEITHER theme NOR theme_config, though it used to do both. Those
+ * moved to updateDesign above and to /dashboard/design. Do not add them back:
+ * theme_config is written whole, so an action that writes it from a form which
+ * does not carry every field deletes the fields it does not carry — once there
+ * was a wallpaper in that column, "save your links" meant "lose your
+ * background". Same reasoning as the `editsLinks` guard in updateProfile.
  */
 export async function savePage(
   _prev: ActionState,
@@ -210,32 +337,6 @@ export async function savePage(
     return { error: parsed.error.issues[0]?.message ?? "Check your links." };
   }
   const sections = parsed.data;
-
-  const theme = String(formData.get("theme") ?? "default");
-  if (!isPageThemeId(theme)) return { error: "Unknown theme" };
-
-  const config: ThemeConfig = {};
-  const font = String(formData.get("font") ?? "sans");
-  if (font === "serif" || font === "sans") config.font = font;
-
-  const accentRaw = String(formData.get("accent") ?? "").trim();
-  if (accentRaw) {
-    const hex = hexColorSchema.safeParse(accentRaw);
-    if (!hex.success) {
-      return { error: hex.error.issues[0]?.message ?? "Invalid colour" };
-    }
-    // The gate that stops an unreadable page being saved. The picker warns in
-    // the browser, but the browser is not a trust boundary.
-    const usable = accentIsUsable(hex.data, theme);
-    if (!usable.ok) return { error: usable.reason };
-    config.accent = hex.data;
-  }
-
-  const { error: pErr } = await supabase
-    .from("profiles")
-    .update({ theme, theme_config: config })
-    .eq("id", userId);
-  if (pErr) return { error: pErr.message };
 
   // 1. Sections. profile_id is forced to the session user, so a forged id
   //    belonging to someone else fails the RLS with-check rather than moving
