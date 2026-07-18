@@ -21,8 +21,6 @@ export type PublicProfile = Pick<
   | "avatar_url"
   | "theme"
   | "theme_config"
-  | "evm_wallet_address"
-  | "tron_wallet_address"
   | "promo_code"
   | "promo_discount_pct"
 >;

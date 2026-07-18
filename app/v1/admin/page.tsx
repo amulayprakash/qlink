@@ -5,6 +5,7 @@ import { notFound } from "next/navigation";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { isAdminAuthorized } from "@/lib/admin-auth";
 import { SECTION_NAMES, type SectionName } from "@/lib/analytics/events";
+import { RefreshButton } from "@/components/admin/RefreshButton";
 
 /**
  * App-wide analytics for the product owner. Gated by HTTP Basic Auth in
@@ -70,6 +71,14 @@ function cutoffFor(days: number | null): string | null {
     : new Date(Date.now() - days * 86_400_000).toISOString();
 }
 
+/** When this render happened — the thing the Refresh button visibly moves.
+ *  UTC and fixed-format on purpose: the server's locale is not the viewer's,
+ *  and a stamp that silently means a different timezone is worse than none.
+ *  Module scope for the same reason as cutoffFor. */
+function renderedAt(): string {
+  return `${new Date().toISOString().slice(11, 16)} UTC`;
+}
+
 export default async function AdminAnalyticsPage({
   searchParams,
 }: {
@@ -95,10 +104,12 @@ export default async function AdminAnalyticsPage({
   // date bound is applied while the builder is still a filter builder.
   let eventsQuery = admin
     .from("page_events")
-    .select("profile_id, type, section, visitor_id");
+    .select("profile_id, type, section, visitor_id, created_at");
   if (cutoffIso) eventsQuery = eventsQuery.gte("created_at", cutoffIso);
 
-  let ordersQuery = admin.from("orders").select("profile_id, status, price_usd");
+  let ordersQuery = admin
+    .from("orders")
+    .select("profile_id, status, price_usd, created_at");
   if (cutoffIso) ordersQuery = ordersQuery.gte("created_at", cutoffIso);
 
   const [profilesRes, eventsRes, ordersRes] = await Promise.all([
@@ -175,6 +186,37 @@ export default async function AdminAnalyticsPage({
     }
   }
 
+  /**
+   * The funnel's first three stages come from page_events, its last two from
+   * orders — and orders have history reaching back before analytics existed.
+   * Comparing them straight would divide a full order history by however many
+   * page views have been recorded since tracking switched on, which is how you
+   * get "4 orders / 3 views = 133%".
+   *
+   * So the funnel is measured over the window BOTH sources cover: from the
+   * oldest event actually counted here. (When tracking predates the range, this
+   * excludes nothing — every order in range is already newer.) The stat tiles
+   * and the per-creator table below deliberately stay on the full range: those
+   * are absolute business counts, where dropping real orders would be the lie.
+   */
+  let earliestEventMs: number | null = null;
+  for (const e of events) {
+    const t = Date.parse(e.created_at);
+    if (!Number.isNaN(t) && (earliestEventMs === null || t < earliestEventMs)) {
+      earliestEventMs = t;
+    }
+  }
+  // const, so the null-narrowing below survives into the filter closure.
+  const trackedFromMs = earliestEventMs;
+
+  const funnelOrders =
+    trackedFromMs === null
+      ? orders
+      : orders.filter((o) => Date.parse(o.created_at) >= trackedFromMs);
+  const funnelOrderCount = funnelOrders.length;
+  const funnelPaidCount = funnelOrders.filter((o) => o.status === "paid").length;
+  const ordersBeforeTracking = orders.length - funnelOrderCount;
+
   const list = [...rows.values()].sort(
     (a, b) => b.views - a.views || b.revenue - a.revenue,
   );
@@ -199,8 +241,8 @@ export default async function AdminAnalyticsPage({
     { label: "Page views", value: totals.views },
     { label: "Package opened", value: totals.opens },
     { label: "Checkout started", value: totals.checkouts },
-    { label: "Orders created", value: totals.orders },
-    { label: "Paid", value: totals.paid },
+    { label: "Orders created", value: funnelOrderCount },
+    { label: "Paid", value: funnelPaidCount },
   ];
 
   return (
@@ -213,32 +255,36 @@ export default async function AdminAnalyticsPage({
           <h1 className="mt-1 text-3xl font-bold">Analytics</h1>
           <p className="mt-1 text-sm text-muted">
             Visitor funnel across all {list.length} creator{" "}
-            {list.length === 1 ? "page" : "pages"} · {range.label.toLowerCase()}
+            {list.length === 1 ? "page" : "pages"} · {range.label.toLowerCase()}{" "}
+            · updated {renderedAt()}
           </p>
         </div>
 
-        {/* Range switch — plain links, so the page stays a pure server render
-            with no client JS. */}
-        <nav className="flex rounded-xl border border-border bg-card p-1">
-          {RANGES.map((r) => {
-            const active = r.key === range.key;
-            return (
-              <Link
-                key={r.key}
-                href={`/v1/admin?days=${r.key}`}
-                aria-current={active ? "page" : undefined}
-                className={[
-                  "rounded-lg px-3 py-1.5 text-sm font-medium transition-colors",
-                  active
-                    ? "bg-brand-600 text-background"
-                    : "text-muted hover:text-foreground",
-                ].join(" ")}
-              >
-                {r.label}
-              </Link>
-            );
-          })}
-        </nav>
+        <div className="flex flex-wrap items-center gap-2">
+          {/* Range switch — plain links, so the ranges stay a pure server
+              render with no client JS. */}
+          <nav className="flex rounded-xl border border-border bg-card p-1">
+            {RANGES.map((r) => {
+              const active = r.key === range.key;
+              return (
+                <Link
+                  key={r.key}
+                  href={`/v1/admin?days=${r.key}`}
+                  aria-current={active ? "page" : undefined}
+                  className={[
+                    "rounded-lg px-3 py-1.5 text-sm font-medium transition-colors",
+                    active
+                      ? "bg-brand-600 text-background"
+                      : "text-muted hover:text-foreground",
+                  ].join(" ")}
+                >
+                  {r.label}
+                </Link>
+              );
+            })}
+          </nav>
+          <RefreshButton />
+        </div>
       </div>
 
       {capped && (
@@ -266,6 +312,20 @@ export default async function AdminAnalyticsPage({
             Each stage as a share of page views. The last stage (paid) comes from
             verified on-chain orders.
           </p>
+          {ordersBeforeTracking > 0 && (
+            <p className="mt-2 rounded-lg border border-border bg-white/[0.03] px-3 py-2 text-xs text-muted">
+              Measured from{" "}
+              <span className="text-foreground">
+                {new Date(trackedFromMs!).toISOString().slice(0, 10)}
+              </span>
+              , when tracking began — so the two order stages compare against the
+              same window as the view stages.{" "}
+              <span className="text-foreground">{ordersBeforeTracking}</span>{" "}
+              older{" "}
+              {ordersBeforeTracking === 1 ? "order is" : "orders are"} excluded
+              here, but still counted in the totals and table below.
+            </p>
+          )}
           <div className="mt-4 space-y-3">
             {funnel.map((stage) => (
               <FunnelBar

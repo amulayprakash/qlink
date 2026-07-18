@@ -21,7 +21,6 @@ import {
   isPageThemeId,
 } from "@/lib/themes";
 import type { ThemeConfig } from "@/lib/types";
-import { isEvmAddress, isTronAddress, normalizeEvmAddress } from "@/lib/crypto/address";
 
 async function requireUser() {
   const supabase = await createClient();
@@ -134,39 +133,6 @@ export async function updateProfile(
       if (lErr) return { error: lErr.message };
     }
   }
-
-  await revalidatePublic(supabase, userId);
-  return { ok: true };
-}
-
-export async function updateWallets(
-  _prev: ActionState,
-  formData: FormData,
-): Promise<ActionState> {
-  const { supabase, userId } = await requireUser();
-
-  const evmRaw = String(formData.get("evm_wallet_address") ?? "").trim();
-  const tronRaw = String(formData.get("tron_wallet_address") ?? "").trim();
-  if (!evmRaw && !tronRaw) {
-    return { error: "Add at least one receiving wallet" };
-  }
-
-  let evm_wallet_address: string | null = null;
-  if (evmRaw) {
-    if (!isEvmAddress(evmRaw)) return { error: "Invalid EVM address" };
-    evm_wallet_address = normalizeEvmAddress(evmRaw);
-  }
-  let tron_wallet_address: string | null = null;
-  if (tronRaw) {
-    if (!isTronAddress(tronRaw)) return { error: "Invalid Tron address" };
-    tron_wallet_address = tronRaw;
-  }
-
-  const { error } = await supabase
-    .from("profiles")
-    .update({ evm_wallet_address, tron_wallet_address })
-    .eq("id", userId);
-  if (error) return { error: error.message };
 
   await revalidatePublic(supabase, userId);
   return { ok: true };
@@ -409,15 +375,10 @@ export async function setPublished(
   if (publish) {
     const { data: profile } = await supabase
       .from("profiles")
-      .select(
-        "username, promo_code, promo_discount_pct, evm_wallet_address, tron_wallet_address",
-      )
+      .select("username, promo_code, promo_discount_pct")
       .eq("id", userId)
       .single();
     if (!profile?.username) return { error: "Set a username first" };
-    if (!profile.evm_wallet_address && !profile.tron_wallet_address) {
-      return { error: "Add a receiving wallet first" };
-    }
     const { count } = await supabase
       .from("packages")
       .select("id", { count: "exact", head: true })

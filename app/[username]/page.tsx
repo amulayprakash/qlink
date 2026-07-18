@@ -178,9 +178,6 @@ export default async function PublicCreatorPage({
   const supabase = createPublicClient();
   const { sections, packages } = await loadCreatorPage(supabase, profile.id);
 
-  const hasEvm = !!profile.evm_wallet_address;
-  const hasTron = !!profile.tron_wallet_address;
-
   return (
     // Only the real public route mounts the tracker (canvas below is likewise
     // public-only): the previews render the same page without it, so a creator
@@ -200,8 +197,10 @@ export default async function PublicCreatorPage({
               username: profile.username,
               avatarUrl: profile.avatar_url,
             }}
-            hasEvm={hasEvm}
-            hasTron={hasTron}
+            // Every chain family is always payable: the recipient is the
+            // platform's own wallet, not a per-creator one.
+            hasEvm
+            hasTron
           />
         )}
       />

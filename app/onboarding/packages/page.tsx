@@ -26,7 +26,7 @@ export default async function PackagesPage() {
       initial={initial}
       action={savePackages}
       submitLabel="Continue"
-      backHref="/onboarding/wallets"
+      backHref="/onboarding/profile"
     />
   );
 }

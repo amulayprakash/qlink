@@ -22,8 +22,8 @@ const STEPS = [
   },
   {
     n: "2",
-    t: "Add packages & wallet",
-    d: "Define your service tiers and drop in your EVM and Tron receiving addresses.",
+    t: "Add your packages",
+    d: "Define your service tiers and what each one includes.",
   },
   {
     n: "3",

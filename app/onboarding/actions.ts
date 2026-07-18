@@ -9,7 +9,6 @@ import {
   linksSchema,
   packagesSchema,
 } from "@/lib/validation";
-import { isEvmAddress, isTronAddress, normalizeEvmAddress } from "@/lib/crypto/address";
 
 export type { ActionState } from "@/lib/forms";
 import type { ActionState } from "@/lib/forms";
@@ -83,7 +82,7 @@ export async function saveProfile(
       display_name,
       bio: bio || null,
       avatar_url,
-      onboarding_step: "wallets",
+      onboarding_step: "packages",
     })
     .eq("id", userId);
   if (pErr) return { error: pErr.message };
@@ -104,52 +103,11 @@ export async function saveProfile(
     if (lErr) return { error: lErr.message };
   }
 
-  redirect("/onboarding/wallets");
-}
-
-// ---------------------------------------------------------------------------
-// Step 3 — receiving wallets
-// ---------------------------------------------------------------------------
-export async function saveWallets(
-  _prev: ActionState,
-  formData: FormData,
-): Promise<ActionState> {
-  const { supabase, userId } = await requireUser();
-
-  const evmRaw = String(formData.get("evm_wallet_address") ?? "").trim();
-  const tronRaw = String(formData.get("tron_wallet_address") ?? "").trim();
-
-  if (!evmRaw && !tronRaw) {
-    return { error: "Add at least one receiving wallet (EVM or Tron)" };
-  }
-
-  let evm_wallet_address: string | null = null;
-  if (evmRaw) {
-    if (!isEvmAddress(evmRaw)) return { error: "Invalid EVM address" };
-    evm_wallet_address = normalizeEvmAddress(evmRaw);
-  }
-
-  let tron_wallet_address: string | null = null;
-  if (tronRaw) {
-    if (!isTronAddress(tronRaw)) return { error: "Invalid Tron address" };
-    tron_wallet_address = tronRaw;
-  }
-
-  const { error } = await supabase
-    .from("profiles")
-    .update({
-      evm_wallet_address,
-      tron_wallet_address,
-      onboarding_step: "packages",
-    })
-    .eq("id", userId);
-  if (error) return { error: error.message };
-
   redirect("/onboarding/packages");
 }
 
 // ---------------------------------------------------------------------------
-// Step 4 — packages
+// Step 3 — packages
 // ---------------------------------------------------------------------------
 export async function savePackages(
   _prev: ActionState,
@@ -196,7 +154,7 @@ export async function savePackages(
 }
 
 // ---------------------------------------------------------------------------
-// Step 5 — publish
+// Step 4 — publish
 // ---------------------------------------------------------------------------
 export async function publishPage(
   _prev: ActionState,
@@ -206,16 +164,11 @@ export async function publishPage(
 
   const { data: profile } = await supabase
     .from("profiles")
-    .select(
-      "username, promo_code, evm_wallet_address, tron_wallet_address",
-    )
+    .select("username, promo_code")
     .eq("id", userId)
     .single();
 
   if (!profile?.username) return { error: "Set your username first" };
-  if (!profile.evm_wallet_address && !profile.tron_wallet_address) {
-    return { error: "Add a receiving wallet before publishing" };
-  }
 
   const { count } = await supabase
     .from("packages")

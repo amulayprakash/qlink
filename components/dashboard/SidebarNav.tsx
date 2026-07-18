@@ -8,7 +8,6 @@ import {
   Package,
   Palette,
   Receipt,
-  Wallet,
 } from "@phosphor-icons/react";
 
 /**
@@ -19,9 +18,7 @@ import {
  * nav item that opens nothing is worse than a shorter nav.
  *
  * Grouped rather than flat because the two groups answer different questions —
- * "what does my page look like" and "what have I earned" — and the group label
- * is what makes Wallets findable at all: nobody goes looking for a receiving
- * address under a link editor.
+ * "what does my page look like" and "what have I earned".
  */
 const GROUPS: {
   label: string;
@@ -40,7 +37,6 @@ const GROUPS: {
     label: "Earn",
     items: [
       { href: "/dashboard/orders", label: "Orders", icon: Receipt },
-      { href: "/dashboard/wallets", label: "Wallets", icon: Wallet },
     ],
   },
 ];

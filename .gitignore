@@ -13,6 +13,21 @@
 # testing
 /coverage
 
+# playwright
+/test-results/
+/playwright-report/
+/blob-report/
+/playwright/.cache/
+/playwright/.auth/
+/playwright.config.ts
+
+# tests
+/tests/
+*.spec.ts
+*.spec.tsx
+*.test.ts
+*.test.tsx
+
 # next.js
 /.next/
 /out/

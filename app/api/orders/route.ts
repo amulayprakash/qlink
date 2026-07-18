@@ -3,6 +3,7 @@ import { z } from "zod";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getNetwork, getToken } from "@/lib/crypto/config";
 import { toBaseUnits, applyDiscount } from "@/lib/crypto/amount";
+import { platformRecipient } from "@/lib/crypto/platform-wallets";
 import { resolvePromo } from "@/lib/promo";
 
 const bodySchema = z.object({
@@ -32,9 +33,7 @@ export async function POST(request: Request) {
 
   const { data: profile } = await admin
     .from("profiles")
-    .select(
-      "id, is_published, evm_wallet_address, tron_wallet_address, promo_code, promo_discount_pct",
-    )
+    .select("id, is_published, promo_code, promo_discount_pct")
     .eq("id", pkg.profile_id)
     .single();
   if (!profile || !profile.is_published) {
@@ -53,16 +52,9 @@ export async function POST(request: Request) {
     );
   }
 
-  const recipient =
-    net.kind === "tron"
-      ? profile.tron_wallet_address
-      : profile.evm_wallet_address;
-  if (!recipient) {
-    return NextResponse.json(
-      { error: "Creator has no wallet for this network" },
-      { status: 400 },
-    );
-  }
+  // Platform-owned, not creator-supplied. Still copied onto the order row below
+  // so the address the buyer pays is frozen at creation.
+  const recipient = platformRecipient(net.kind);
 
   const promo = resolvePromo({
     entered: promoCode,

@@ -21,14 +21,11 @@ export default async function PreviewPage() {
   // filter, so it showed paused packages the live page hides.
   const { sections, packages } = await loadCreatorPage(supabase, user!.id);
 
-  const hasWallet =
-    !!profile?.evm_wallet_address || !!profile?.tron_wallet_address;
   const pkgCount = packages?.length ?? 0;
-  const ready = !!profile?.username && hasWallet && pkgCount > 0;
+  const ready = !!profile?.username && pkgCount > 0;
 
   const checklist = [
     { label: "Username claimed", ok: !!profile?.username, href: "/onboarding/username" },
-    { label: "Receiving wallet added", ok: hasWallet, href: "/onboarding/wallets" },
     { label: "At least one package", ok: pkgCount > 0, href: "/onboarding/packages" },
   ];
 

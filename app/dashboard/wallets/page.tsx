@@ -1,34 +1,13 @@
-import Link from "next/link";
-import { createClient } from "@/lib/supabase/server";
-import { WalletsForm } from "@/components/onboarding/WalletsForm";
-import { updateWallets } from "@/app/dashboard/actions";
+import { redirect } from "next/navigation";
 
-export default async function DashboardWallets() {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("evm_wallet_address, tron_wallet_address")
-    .eq("id", user!.id)
-    .single();
-
-  return (
-    <div className="mx-auto max-w-2xl">
-      <Link href="/dashboard" className="btn-ghost mb-4 text-sm">
-        ← Back to overview
-      </Link>
-      <WalletsForm
-        action={updateWallets}
-        submitLabel="Save changes"
-        backHref=""
-        initial={{
-          evm: profile?.evm_wallet_address ?? "",
-          tron: profile?.tron_wallet_address ?? "",
-        }}
-      />
-    </div>
-  );
+/**
+ * Retired. Creators no longer supply receiving wallets — payments go to the
+ * platform's fixed addresses (`lib/crypto/platform-wallets.ts`).
+ *
+ * Kept as a redirect rather than deleted because the route shipped in the
+ * sidebar for a while, so it is sitting in bookmarks and browser history; a
+ * 404 there reads as "the dashboard is broken", not "this moved".
+ */
+export default function DashboardWallets() {
+  redirect("/dashboard");
 }
