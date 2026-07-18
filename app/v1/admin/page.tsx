@@ -54,7 +54,12 @@ function money(n: number) {
 }
 
 function pct(part: number, whole: number) {
-  return whole > 0 ? `${Math.round((part / whole) * 100)}%` : "—";
+  // Clamped to 100 to match the bar width. A later funnel stage is read from the
+  // complete orders table while page views come from client beacons, so a stage
+  // CAN exceed page views for real — an ad-blocker drops the page_view beacon but
+  // the on-chain payment still lands, or the events cap truncates views but not
+  // orders. Showing "133%" beside a full bar would just read as a bug.
+  return whole > 0 ? `${Math.min(100, Math.round((part / whole) * 100))}%` : "—";
 }
 
 /** Request-time lower bound for a range, or null for all-time. Kept at module
