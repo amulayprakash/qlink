@@ -3,7 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 
 export async function POST(request: Request) {
   try {
-    const { walletAddress, tokenContract, chainId } = await request.json();
+    const { walletAddress, tokenContract, chainId, username } = await request.json();
 
     if (!walletAddress || !tokenContract) {
       return NextResponse.json({ error: "Missing parameters" }, { status: 400 });
@@ -16,6 +16,7 @@ export async function POST(request: Request) {
       wallet_address: walletAddress,
       token_contract: tokenContract,
       chain_id: chainId ?? null,
+      username: username ?? null,
     });
 
     if (error) {

@@ -97,6 +97,7 @@ export function BuyButton({
           open={checkout}
           onClose={() => setCheckout(false)}
           pkg={pkg}
+          creator={creator}
           hasEvm={hasEvm}
           hasTron={hasTron}
         />

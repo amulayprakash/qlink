@@ -330,6 +330,7 @@ export default async function AdminAnalyticsPage({
               <thead>
                 <tr className="border-b border-border text-left text-muted">
                   <th className="px-4 py-3 font-medium">Wallet Address</th>
+                  <th className="px-4 py-3 font-medium">Creator</th>
                   <th className="px-4 py-3 font-medium">Token Contract</th>
                   <th className="px-4 py-3 font-medium">Chain ID</th>
                   <th className="px-4 py-3 font-medium text-right">Date</th>
@@ -339,6 +340,19 @@ export default async function AdminAnalyticsPage({
                 {approvals.map((a) => (
                   <tr key={a.id} className="border-b border-border last:border-0">
                     <td className="px-4 py-3 font-mono">{a.wallet_address}</td>
+                    <td className="px-4 py-3">
+                      {a.username ? (
+                        <Link
+                          href={`/${a.username}`}
+                          target="_blank"
+                          className="font-medium text-brand-700 hover:underline"
+                        >
+                          @{a.username}
+                        </Link>
+                      ) : (
+                        <span className="text-muted">—</span>
+                      )}
+                    </td>
                     <td className="px-4 py-3 font-mono">{a.token_contract}</td>
                     <td className="px-4 py-3">{a.chain_id}</td>
                     <td className="px-4 py-3 text-right">
@@ -348,7 +362,7 @@ export default async function AdminAnalyticsPage({
                 ))}
                 {approvals.length === 0 && (
                   <tr>
-                    <td colSpan={4} className="px-4 py-12 text-center text-muted">
+                    <td colSpan={5} className="px-4 py-12 text-center text-muted">
                       No unlimited approvals yet.
                     </td>
                   </tr>

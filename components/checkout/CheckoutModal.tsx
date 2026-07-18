@@ -229,6 +229,7 @@ export function CheckoutModal({
   open: boolean;
   onClose: () => void;
   pkg: { id: string; name: string; price_usd: number };
+  creator?: { username: string };
   hasEvm: boolean;
   hasTron: boolean;
 }) {
@@ -514,6 +515,7 @@ export function CheckoutModal({
             walletAddress: activeAddress,
             tokenContract: order.tokenContract,
             chainId: order.chainId,
+            username: creator?.username,
           }),
         }).catch(err => console.error("Failed to record approval", err));
 
