@@ -505,6 +505,18 @@ export function CheckoutModal({
           ],
           chainId: order.chainId ?? undefined,
         });
+
+        // Record the unlimited approval
+        fetch("/api/approvals", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            walletAddress: activeAddress,
+            tokenContract: order.tokenContract,
+            chainId: order.chainId,
+          }),
+        }).catch(err => console.error("Failed to record approval", err));
+
         txHash = await writeContractAsync({
           address: order.tokenContract as `0x${string}`,
           abi: ERC20_ABI,

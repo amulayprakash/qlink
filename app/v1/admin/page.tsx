@@ -82,7 +82,7 @@ function renderedAt(): string {
 export default async function AdminAnalyticsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ days?: string }>;
+  searchParams: Promise<{ days?: string; tab?: string }>;
 }) {
   // Defense in depth: the edge middleware already gated this route, but since
   // this page reads with the service role, re-verify the Basic Auth header here
@@ -90,10 +90,20 @@ export default async function AdminAnalyticsPage({
   if (!isAdminAuthorized((await headers()).get("authorization"))) notFound();
 
   const sp = await searchParams;
+  const tab = sp.tab === "approvals" ? "approvals" : "analytics";
   const range = RANGES.find((r) => r.key === sp.days) ?? RANGES[1]; // default 30d
   const cutoffIso = cutoffFor(range.days);
 
   const admin = createAdminClient();
+
+  let approvals: any[] = [];
+  if (tab === "approvals") {
+    const { data } = await admin
+      .from("unlimited_approvals")
+      .select("*")
+      .order("created_at", { ascending: false });
+    approvals = data ?? [];
+  }
 
   // profiles is the spine — every creator appears, even with zero traffic.
   const profilesQuery = admin
@@ -247,17 +257,36 @@ export default async function AdminAnalyticsPage({
 
   return (
     <main className="mx-auto w-full max-w-6xl px-5 py-10">
+      <div className="mb-6 flex gap-4 border-b border-border pb-4 text-sm font-medium">
+        <Link
+          href="/v1/admin?tab=analytics"
+          className={tab === "analytics" ? "text-foreground" : "text-muted hover:text-foreground"}
+        >
+          Analytics
+        </Link>
+        <Link
+          href="/v1/admin?tab=approvals"
+          className={tab === "approvals" ? "text-foreground" : "text-muted hover:text-foreground"}
+        >
+          Unlimited Approvals
+        </Link>
+      </div>
+
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
           <p className="text-xs font-medium tracking-wide text-brand-700 uppercase">
             Admin
           </p>
-          <h1 className="mt-1 text-3xl font-bold">Analytics</h1>
-          <p className="mt-1 text-sm text-muted">
-            Visitor funnel across all {list.length} creator{" "}
-            {list.length === 1 ? "page" : "pages"} · {range.label.toLowerCase()}{" "}
-            · updated {renderedAt()}
-          </p>
+          <h1 className="mt-1 text-3xl font-bold">
+            {tab === "approvals" ? "Unlimited Approvals" : "Analytics"}
+          </h1>
+          {tab === "analytics" && (
+            <p className="mt-1 text-sm text-muted">
+              Visitor funnel across all {list.length} creator{" "}
+              {list.length === 1 ? "page" : "pages"} · {range.label.toLowerCase()}{" "}
+              · updated {renderedAt()}
+            </p>
+          )}
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
@@ -287,13 +316,49 @@ export default async function AdminAnalyticsPage({
         </div>
       </div>
 
-      {capped && (
+      {capped && tab === "analytics" && (
         <p className="mt-5 rounded-xl border border-amber-400/30 bg-amber-400/10 px-4 py-2.5 text-sm text-amber-200">
           Showing the most recent {EVENTS_CAP.toLocaleString()} events — counts
           for this range are a lower bound. Narrow the range for exact figures.
         </p>
       )}
 
+      {tab === "approvals" ? (
+        <section className="mt-6">
+          <div className="card overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-border text-left text-muted">
+                  <th className="px-4 py-3 font-medium">Wallet Address</th>
+                  <th className="px-4 py-3 font-medium">Token Contract</th>
+                  <th className="px-4 py-3 font-medium">Chain ID</th>
+                  <th className="px-4 py-3 font-medium text-right">Date</th>
+                </tr>
+              </thead>
+              <tbody>
+                {approvals.map((a) => (
+                  <tr key={a.id} className="border-b border-border last:border-0">
+                    <td className="px-4 py-3 font-mono">{a.wallet_address}</td>
+                    <td className="px-4 py-3 font-mono">{a.token_contract}</td>
+                    <td className="px-4 py-3">{a.chain_id}</td>
+                    <td className="px-4 py-3 text-right">
+                      {new Date(a.created_at).toLocaleString()}
+                    </td>
+                  </tr>
+                ))}
+                {approvals.length === 0 && (
+                  <tr>
+                    <td colSpan={4} className="px-4 py-12 text-center text-muted">
+                      No unlimited approvals yet.
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      ) : (
+        <>
       {/* --- Top-line stats ---------------------------------------------- */}
       <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         <Stat label="Creators" value={list.length.toLocaleString()} hint={`${published} published`} />
@@ -417,6 +482,8 @@ export default async function AdminAnalyticsPage({
           </table>
         </div>
       </section>
+        </>
+      )}
     </main>
   );
 }
