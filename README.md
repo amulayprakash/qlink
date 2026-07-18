@@ -124,6 +124,22 @@ supabase/migrations/           schema + RLS + storage
 proxy.ts                       auth session refresh + route protection
 ```
 
+## Analytics
+
+Public creator pages record an anonymous visitor funnel — `page_view`,
+`section_view` (links / packages / promo), `package_open` and `checkout_start` —
+via a `sendBeacon` to [`app/api/events`](app/api/events/route.ts), written with
+the service role into the `page_events` table. The final funnel stage (paid) is
+read from `orders`, which is already server-verified on-chain. Tracking runs
+**only** on the live `/[username]` route, never in the dashboard/editor previews,
+so a creator viewing their own draft doesn't inflate their numbers.
+
+- **Migration:** run [`supabase/migrations/0008_analytics.sql`](supabase/migrations/0008_analytics.sql).
+- **Dashboard:** the app-wide view lives at **`/v1/admin`** (funnel, section
+  engagement, and a per-username breakdown). It is gated by **HTTP Basic Auth**
+  in [`proxy.ts`](proxy.ts) — credentials come from `ADMIN_USER` / `ADMIN_PASSWORD`
+  (default `john` / `Qspl@1234`; override in production).
+
 ## Security notes
 
 - Service-role key is used **only** in server route handlers, never shipped to

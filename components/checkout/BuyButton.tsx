@@ -7,6 +7,7 @@ import {
   type PageCreator,
 } from "@/components/page/PackageDetailModal";
 import type { PagePackage } from "@/components/page/PackagesSection";
+import { useTrack } from "@/components/analytics/AnalyticsProvider";
 
 /**
  * The wallet stack is ~1.5MB of JS and it hangs off this one import.
@@ -40,6 +41,7 @@ export function BuyButton({
 }) {
   const [detail, setDetail] = useState(false);
   const [checkout, setCheckout] = useState(false);
+  const track = useTrack();
   const label =
     pkg.price_usd % 1 === 0 ? `$${pkg.price_usd}` : `$${pkg.price_usd.toFixed(2)}`;
 
@@ -52,6 +54,9 @@ export function BuyButton({
         className="page-cta"
         onClick={() => {
           setDetail(true);
+          // "Picked their model": opening the detail is the visitor choosing
+          // this package to look at, the first funnel step past a section view.
+          track("package_open", { packageId: pkg.id });
           // Prefetch on OPEN rather than on hover of this button. The hover
           // version predates the detail step and no longer earns its keep: this
           // button now means "show me what's in it", so hovering it would pull
@@ -81,6 +86,9 @@ export function BuyButton({
             // overlay, and its focus trap would fight the checkout's.
             setDetail(false);
             setCheckout(true);
+            // Proceeding toward payment — the checkout modal is opening. The
+            // final stage (paid) is read from the orders table, not a beacon.
+            track("checkout_start", { packageId: pkg.id });
           }}
         />
       )}

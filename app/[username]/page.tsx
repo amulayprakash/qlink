@@ -3,6 +3,7 @@ import { cache } from "react";
 import { notFound } from "next/navigation";
 import { createPublicClient } from "@/lib/supabase/public";
 import { CreatorPageView } from "@/components/CreatorPageView";
+import { AnalyticsProvider } from "@/components/analytics/AnalyticsProvider";
 import { BuyButton } from "@/components/checkout/BuyButton";
 import { loadCreatorPage } from "@/lib/sections";
 import { pageTheme } from "@/lib/themes";
@@ -181,23 +182,29 @@ export default async function PublicCreatorPage({
   const hasTron = !!profile.tron_wallet_address;
 
   return (
-    <CreatorPageView
-      profile={profile}
-      sections={sections}
-      packages={packages}
-      canvas
-      buySlot={(p) => (
-        <BuyButton
-          pkg={p}
-          creator={{
-            name: profile.display_name ?? `@${profile.username}`,
-            username: profile.username,
-            avatarUrl: profile.avatar_url,
-          }}
-          hasEvm={hasEvm}
-          hasTron={hasTron}
-        />
-      )}
-    />
+    // Only the real public route mounts the tracker (canvas below is likewise
+    // public-only): the previews render the same page without it, so a creator
+    // viewing their own draft never records a visit. `username` is the URL
+    // param — its case-insensitive match already resolved this profile.
+    <AnalyticsProvider username={profile.username ?? username}>
+      <CreatorPageView
+        profile={profile}
+        sections={sections}
+        packages={packages}
+        canvas
+        buySlot={(p) => (
+          <BuyButton
+            pkg={p}
+            creator={{
+              name: profile.display_name ?? `@${profile.username}`,
+              username: profile.username,
+              avatarUrl: profile.avatar_url,
+            }}
+            hasEvm={hasEvm}
+            hasTron={hasTron}
+          />
+        )}
+      />
+    </AnalyticsProvider>
   );
 }

@@ -114,6 +114,32 @@ export function CreatorPageView({
    */
   const wallpaper = wallpaperCss(config.wallpaper);
 
+  /**
+   * Mark a section so the AnalyticsProvider's IntersectionObserver can record a
+   * `section_view` for it. Two guards keep it honest:
+   *   - `canvas` — only the real public route carries the provider, so the
+   *     previews (dashboard, onboarding, editor) render byte-identical to before,
+   *   - `visible` — the section actually renders content, so an empty wrapper
+   *     never fires a view for a section that drew nothing.
+   * Off either guard the node is returned untouched (keyed, when it is a list
+   * item, so the map still gets its React key).
+   */
+  const tag = (
+    name: "links" | "packages" | "promo",
+    node: ReactNode,
+    visible: boolean,
+    key?: string,
+  ): ReactNode =>
+    canvas && visible ? (
+      <div key={key} data-av-section={name}>
+        {node}
+      </div>
+    ) : key !== undefined ? (
+      <Fragment key={key}>{node}</Fragment>
+    ) : (
+      node
+    );
+
   return (
     <div
       data-page-theme={theme.id}
@@ -196,42 +222,56 @@ export function CreatorPageView({
              each buySlot. See promo-context for why this cannot be props. */
           <PromoProvider>
             <div className="mt-8 space-y-3">
-              {pillSections.map((s, i) =>
-                s.kind === "packages" ? (
-                  <Fragment key={s.id}>
-                    {/* Immediately above the packages, wherever the creator has
-                        dragged them, rather than in a fixed slot in this file —
-                        section order is data, and a discount that has drifted
-                        away from the thing it discounts is just noise.
+              {pillSections.map((s, i) => {
+                if (s.kind === "packages") {
+                  // Same condition PromoSection uses to render at all, so the
+                  // "promo" marker is only applied when a promo card is drawn.
+                  const showPromo =
+                    packages.length > 0 &&
+                    !!profile.promo_code &&
+                    profile.promo_discount_pct > 0;
+                  return (
+                    <Fragment key={s.id}>
+                      {/* Immediately above the packages, wherever the creator
+                          has dragged them, rather than in a fixed slot in this
+                          file — section order is data, and a discount that has
+                          drifted away from the thing it discounts is just noise.
 
-                        Gated on there being packages because PackagesSection
-                        renders null without them, and a promo card floating
-                        over nothing to buy would be the only thing left. */}
-                    {packages.length > 0 && (
-                      <PromoSection
-                        code={profile.promo_code}
-                        discountPct={profile.promo_discount_pct}
-                        delay={i * 0.05}
-                        preview={preview}
-                      />
-                    )}
-                    <PackagesSection
-                      section={s}
-                      packages={packages}
-                      buySlot={buySlot}
-                      delay={i * 0.05}
-                      preview={preview}
-                    />
-                  </Fragment>
-                ) : (
-                  <LinksSection
-                    key={s.id}
-                    section={s}
-                    delay={i * 0.05}
-                    preview={preview}
-                  />
-                ),
-              )}
+                          Gated on there being packages because PackagesSection
+                          renders null without them, and a promo card floating
+                          over nothing to buy would be the only thing left. */}
+                      {packages.length > 0 &&
+                        tag(
+                          "promo",
+                          <PromoSection
+                            code={profile.promo_code}
+                            discountPct={profile.promo_discount_pct}
+                            delay={i * 0.05}
+                            preview={preview}
+                          />,
+                          showPromo,
+                        )}
+                      {tag(
+                        "packages",
+                        <PackagesSection
+                          section={s}
+                          packages={packages}
+                          buySlot={buySlot}
+                          delay={i * 0.05}
+                          preview={preview}
+                        />,
+                        packages.length > 0,
+                      )}
+                    </Fragment>
+                  );
+                }
+                return tag(
+                  "links",
+                  <LinksSection section={s} delay={i * 0.05} preview={preview} />,
+                  s.links.length > 0,
+                  s.id,
+                );
+              })}
             </div>
           </PromoProvider>
         )}
