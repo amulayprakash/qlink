@@ -33,10 +33,18 @@ export const REFERRAL_COOKIE = "qlink_ref";
  */
 export const REFERRAL_COOKIE_MAX_AGE = 14 * 24 * 60 * 60;
 
-/** The link a creator shares. */
-export function referralUrl(code: string): string {
-  const base = process.env.NEXT_PUBLIC_APP_URL ?? "";
-  return `${base.replace(/\/$/, "")}/r/${code}`;
+/**
+ * The link a creator shares.
+ *
+ * Takes the origin rather than reading NEXT_PUBLIC_APP_URL itself. That env var
+ * is inlined at BUILD time, so on any deploy where it was not set the creator
+ * is handed a `http://localhost:3000/r/…` link — which looks completely normal
+ * on screen and is worthless the moment it is shared. Callers pass the origin
+ * from `getAppUrl()`, which asks the request headers what host actually served
+ * it and falls back to the env var only when there is no request.
+ */
+export function referralUrl(origin: string, code: string): string {
+  return `${origin.replace(/\/$/, "")}/r/${code}`;
 }
 
 /**

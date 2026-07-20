@@ -166,11 +166,22 @@ grant execute on function public.referral_pct(numeric) to service_role;
 -- no migration for the users who already exist, and a user who never opens the
 -- referrals screen never gets a row.
 --
--- The code is hex from `gen_random_bytes`, retried on collision. 32 bits is
+-- The code is hex sliced out of a random uuid, retried on collision. 32 bits is
 -- 4.3e9 values, which sounds ample and is not: collisions start showing up
 -- around 65k codes by the birthday bound, so the retry loop is load-bearing
 -- rather than defensive — "the unique index will catch it" is only true if
 -- something then tries again.
+--
+-- ⚠️ NOT gen_random_bytes(), which is the obvious choice and does not work
+-- here. On Supabase pgcrypto is installed into the `extensions` schema, and
+-- this function pins `search_path = public, pg_temp` — so gen_random_bytes is
+-- simply not on the path and the call raises at runtime. It fails only when
+-- invoked through PostgREST; a test run from the SQL editor passes, because
+-- that session's search_path does include `extensions`. gen_random_uuid() is in
+-- pg_catalog, which is always resolvable no matter what the path is pinned to.
+-- Widening the search_path would also have fixed it and would have been the
+-- wrong fix: pinning it is what stops a SECURITY DEFINER function being steered
+-- at an attacker's shadow objects.
 create or replace function public.my_referral_code()
 returns text
 language plpgsql
@@ -197,13 +208,12 @@ begin
       raise exception 'Could not allocate a referral code';
     end if;
 
-    -- 4 random bytes -> 32 bits -> exactly 8 hex digits once padded. The width
-    -- has to match the byte count: to_hex() drops leading zeroes, so the lpad
-    -- is what keeps every code the same length. A code that is sometimes 7
-    -- characters and sometimes 8 reads like a typo when shared.
-    v_code := lpad(
-      to_hex(('x' || encode(gen_random_bytes(4), 'hex'))::bit(32)::bigint), 8, '0'
-    );
+    -- The first 8 hex digits of a v4 uuid: 32 random bits, already zero-padded
+    -- to a fixed width by the uuid's own formatting. Taken from the FRONT
+    -- deliberately — a v4 uuid pins its version nibble at hex position 13 and
+    -- two variant bits at 17, so a slice from the middle would be partly
+    -- constant across every code.
+    v_code := substr(replace(gen_random_uuid()::text, '-', ''), 1, 8);
     -- to_hex gives [0-9a-f]; that is already inside the table's [a-z0-9] check
     -- and avoids the ambiguous glyph problem entirely (no l/1, no O/0 pairs to
     -- confuse in a code someone reads off a screen).

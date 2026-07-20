@@ -6,6 +6,7 @@ import {
   referralUrl,
 } from "@/lib/referrals";
 import { ReferralPanel } from "@/components/dashboard/ReferralPanel";
+import { getAppUrl } from "@/lib/app-url";
 import { BASE_REFERRAL_PCT, formatUsd } from "@/lib/fees";
 
 /**
@@ -18,7 +19,11 @@ import { BASE_REFERRAL_PCT, formatUsd } from "@/lib/fees";
 export default async function ReferralsPage() {
   const supabase = await createClient();
 
-  const [code, referrals, earnings] = await Promise.all([
+  // The origin comes from the request rather than from NEXT_PUBLIC_APP_URL:
+  // that var is inlined at build time, and a deploy without it renders a
+  // localhost link that looks fine here and is dead everywhere else.
+  const [origin, code, referrals, earnings] = await Promise.all([
+    getAppUrl(),
     loadReferralCode(supabase),
     loadReferrals(supabase),
     loadReferralEarnings(supabase),
@@ -47,7 +52,7 @@ export default async function ReferralsPage() {
       </div>
 
       <ReferralPanel
-        url={code ? referralUrl(code) : null}
+        url={code ? referralUrl(origin, code) : null}
         // The rate a referrer actually gets is capped at the REFEREE's fee rate
         // and computed at settlement, so this is the headline rather than a
         // guarantee — which is why it comes from the shared constant and not
