@@ -223,6 +223,7 @@ export function CheckoutModal({
   open,
   onClose,
   pkg,
+  creator,
   hasEvm,
   hasTron,
 }: {

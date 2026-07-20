@@ -44,15 +44,17 @@ function Row() {
 export function NetworksMarquee() {
   const reduce = useReducedMotion();
   return (
-    <div className="relative overflow-hidden [mask-image:linear-gradient(90deg,transparent,#000_12%,#000_88%,transparent)]">
-      <motion.div
-        className="flex w-max"
-        animate={reduce ? undefined : { x: ["0%", "-50%"] }}
-        transition={{ duration: 32, ease: "linear", repeat: Infinity }}
-      >
-        <Row />
-        <Row />
-      </motion.div>
+    <div className="relative mx-auto max-w-5xl rounded-full border border-white/10 bg-white/[0.02] py-4 shadow-[inset_0_0_20px_rgba(255,255,255,0.02)] backdrop-blur-xl">
+      <div className="relative overflow-hidden [mask-image:linear-gradient(90deg,transparent,#000_15%,#000_85%,transparent)]">
+        <motion.div
+          className="flex w-max"
+          animate={reduce ? undefined : { x: ["0%", "-50%"] }}
+          transition={{ duration: 32, ease: "linear", repeat: Infinity }}
+        >
+          <Row />
+          <Row />
+        </motion.div>
+      </div>
     </div>
   );
 }

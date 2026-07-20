@@ -8,6 +8,8 @@ import {
   Package,
   Palette,
   Receipt,
+  UsersThree,
+  Wallet,
 } from "@phosphor-icons/react";
 
 /**
@@ -37,6 +39,8 @@ const GROUPS: {
     label: "Earn",
     items: [
       { href: "/dashboard/orders", label: "Orders", icon: Receipt },
+      { href: "/dashboard/balance", label: "Balance", icon: Wallet },
+      { href: "/dashboard/referrals", label: "Referrals", icon: UsersThree },
     ],
   },
 ];

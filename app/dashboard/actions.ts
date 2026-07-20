@@ -13,7 +13,10 @@ import {
   hexColorSchema,
   wallpaperSchema,
   shareImageUrlSchema,
+  payoutSchema,
+  isValidPayoutAddress,
 } from "@/lib/validation";
+import { getNetwork, getToken } from "@/lib/crypto/config";
 import {
   accentIsUsable,
   isButtonFill,
@@ -403,5 +406,74 @@ export async function setPublished(
   }
 
   await revalidatePublic(supabase, userId);
+  return { ok: true };
+}
+
+/**
+ * Redeem part of a balance.
+ *
+ * Thin on purpose. The amount is checked against the creator's balance, the
+ * platform fee is computed, and the row is inserted inside `request_payout()`
+ * (0011) — one transaction holding a lock on the creator's profile row.
+ * Pulling any of that up here would reintroduce the race it exists to close:
+ * supabase-js has no transactions, so a read-then-insert in TypeScript lets
+ * two concurrent submissions both pass the balance check and overdraw.
+ *
+ * So this validates shape, and lets the database own the money.
+ */
+export async function requestPayout(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const { supabase } = await requireUser();
+
+  const parsed = payoutSchema.safeParse({
+    amount: Number(formData.get("amount")),
+    address: formData.get("address"),
+    network: formData.get("network"),
+    token: formData.get("token"),
+  });
+  if (!parsed.success) {
+    return { error: parsed.error.issues[0]?.message ?? "Check the form" };
+  }
+  const { amount, address, network, token } = parsed.data;
+
+  // Membership of the registry, which payoutSchema deliberately does not check.
+  const net = getNetwork(network);
+  if (!net) return { error: "Unsupported network" };
+  if (!getToken(network, token)) {
+    return { error: `${token} is not supported on ${net.name}` };
+  }
+  if (!isValidPayoutAddress(address, net.kind)) {
+    return {
+      error:
+        net.kind === "tron"
+          ? "That is not a Tron address — they start with T"
+          : "That is not a valid EVM address — 0x followed by 40 hex characters",
+    };
+  }
+
+  const { error } = await supabase.rpc("request_payout", {
+    p_amount: amount,
+    p_address: address,
+    p_network: network,
+    p_token: token,
+  });
+
+  if (error) {
+    // P0001 is what a bare `raise exception` in request_payout() produces, and
+    // every one of those is a sentence written for a creator (below the
+    // minimum, over the balance, bad address). Anything else is the database
+    // talking to us, not to them — "numeric field overflow" or a constraint
+    // name helps nobody and describes our internals.
+    return {
+      error:
+        error.code === "P0001"
+          ? error.message
+          : "Could not submit that redemption. Please try again.",
+    };
+  }
+
+  revalidatePath("/dashboard/balance");
   return { ok: true };
 }

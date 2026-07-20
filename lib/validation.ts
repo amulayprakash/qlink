@@ -263,5 +263,51 @@ export const packageSchema = z.object({
 });
 export const packagesSchema = z.array(packageSchema).max(20);
 
+/**
+ * Where a creator wants a redemption sent.
+ *
+ * Format checks only — the same stance platformSchema takes, and for a related
+ * reason: this cannot prove an address is controlled by the creator or that it
+ * exists on the chain they picked. It rejects the typo class (wrong length,
+ * wrong alphabet, an EVM address pasted into a Tron payout) and leaves the
+ * rest to the operator settling the request, who is looking at it anyway.
+ *
+ * Network membership is checked in the action against lib/crypto/config.ts,
+ * not here — this file deliberately imports no registry, so retiring a network
+ * can never make an existing payout row unreadable.
+ */
+export const EVM_ADDRESS_RE = /^0x[a-fA-F0-9]{40}$/;
+export const TRON_ADDRESS_RE = /^T[1-9A-HJ-NP-Za-km-z]{33}$/;
+
+export const payoutAddressSchema = z
+  .string()
+  .trim()
+  .min(1, "Enter the address to send your payout to")
+  .max(80);
+
+/** Address shape for a chain family. Split out because the form validates a
+ *  keystroke at a time and the action validates a submission, and they must
+ *  not disagree about what counts as valid. */
+export function isValidPayoutAddress(
+  address: string,
+  kind: "evm" | "tron",
+): boolean {
+  const a = address.trim();
+  return kind === "tron" ? TRON_ADDRESS_RE.test(a) : EVM_ADDRESS_RE.test(a);
+}
+
+export const payoutSchema = z.object({
+  /** Bounds only. The real ceiling is the creator's available balance, which
+   *  only the database can check without racing another request. */
+  amount: z
+    .number({ message: "Enter an amount" })
+    .positive("Enter an amount")
+    .max(1_000_000),
+  address: payoutAddressSchema,
+  network: z.string().trim().min(1, "Choose a network"),
+  token: z.enum(["USDT", "USDC"]),
+});
+
 export type LinkInput = z.infer<typeof linkSchema>;
 export type PackageInput = z.infer<typeof packageSchema>;
+export type PayoutInput = z.infer<typeof payoutSchema>;

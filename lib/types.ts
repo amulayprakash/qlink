@@ -173,3 +173,86 @@ export interface Order {
   created_at: string;
   verified_at: string | null;
 }
+
+/**
+ * 'pending'    — submitted, waiting on an operator.
+ * 'processing' — being sent on-chain.
+ * 'paid'       — settled; tx_hash is the transfer.
+ * 'rejected'   — declined; the funds return to the available balance.
+ *
+ * The first three all reserve their amount against the creator's balance, so
+ * a request cannot be submitted twice while the first is in flight (0011).
+ */
+export type PayoutStatus = "pending" | "processing" | "paid" | "rejected";
+
+/**
+ * A redemption request. The fee split is frozen onto the row at request time,
+ * the same way orders.recipient freezes the address a buyer was shown —
+ * renegotiating a creator's rate must not restate what they were already
+ * quoted.
+ */
+export interface Payout {
+  id: string;
+  /** What the creator asked to redeem, before the fee. */
+  amount_gross_usd: number;
+  /** Rate applied to THIS request, not the creator's current rate. */
+  fee_pct: number;
+  fee_usd: number;
+  /** Always amount_gross_usd - fee_usd; the DB asserts it. */
+  amount_net_usd: number;
+  destination_address: string;
+  /** A network key from lib/crypto/config.ts. Free text in the DB, same
+   *  convention as orders.network. */
+  destination_network: string;
+  destination_token: string;
+  status: PayoutStatus;
+  tx_hash: string | null;
+  note: string | null;
+  created_at: string;
+  processed_at: string | null;
+}
+
+/**
+ * Someone this creator referred.
+ *
+ * Only ever read in the referrer direction — `referrals_referrer_read` (0012)
+ * is the only select policy, and a creator cannot see who referred THEM. That
+ * asymmetry is deliberate: attribution is immutable, and showing it invites
+ * requests to change it.
+ */
+export interface Referral {
+  referee_id: string;
+  created_at: string;
+  /**
+   * Joined from `profiles`, and null more often than it looks.
+   *
+   * `profiles_public_read` (0001) only exposes PUBLISHED rows, and a referrer
+   * is not the owner of their referee's row — so a referee who has signed up
+   * but not published is invisible through this join even though the
+   * `referrals` row is plainly readable. The referral still counts and still
+   * earns; only the name is missing. Widening this would mean a policy letting
+   * one creator read another's unpublished profile, which is a much larger
+   * concession than a display name is worth.
+   */
+  username: string | null;
+  display_name: string | null;
+  avatar_url: string | null;
+}
+
+/**
+ * One referral credit, minted when a referred creator's payout settled.
+ *
+ * `source_gross_usd` is the portion of that payout the credit was computed on,
+ * not the payout's full value — credits are capped at the referee's lifetime
+ * sales so that redeeming referral income cannot itself generate more of it
+ * (see `credit_referral()` in 0012).
+ */
+export interface ReferralEarning {
+  id: string;
+  referee_id: string;
+  payout_id: string;
+  source_gross_usd: number;
+  referral_pct: number;
+  amount_usd: number;
+  created_at: string;
+}
