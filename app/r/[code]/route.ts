@@ -1,4 +1,5 @@
-import { NextResponse, type NextRequest } from "next/server";
+import { NextResponse } from "next/server";
+import { getAppUrl } from "@/lib/app-url";
 import { REFERRAL_COOKIE, REFERRAL_COOKIE_MAX_AGE } from "@/lib/referrals";
 
 /**
@@ -15,16 +16,20 @@ import { REFERRAL_COOKIE, REFERRAL_COOKIE_MAX_AGE } from "@/lib/referrals";
  * link's entire purpose is a sign-up, and a cookie set on a page the visitor
  * then bounces off is a cookie wasted.
  */
-export async function GET(
-  request: NextRequest,
-  ctx: RouteContext<"/r/[code]">,
-) {
+export async function GET(_request: Request, ctx: RouteContext<"/r/[code]">) {
   const { code } = await ctx.params;
 
-  const url = request.nextUrl.clone();
-  url.pathname = "/login";
-  url.search = "";
-  const response = NextResponse.redirect(url);
+  // ⚠️ NOT `request.nextUrl.clone()`. Behind Netlify that carries the INTERNAL
+  // deploy origin (main--loyalfan.netlify.app), not the domain the visitor
+  // typed — the same trap /auth/callback documents.
+  //
+  // Here it is worse than an ugly URL. The cookie below is set on the host that
+  // served THIS response; redirecting to a different host means /auth/callback
+  // runs somewhere the cookie was never scoped to, so it is never sent back and
+  // the attribution is lost in silence. Every referral would look like an
+  // organic signup and nobody would ever see an error.
+  const origin = await getAppUrl();
+  const response = NextResponse.redirect(`${origin}/login`);
 
   // Shape-checked here so a junk path segment never reaches the cookie jar.
   // Matches the `referral_codes.code` check constraint in 0012.
