@@ -15,10 +15,8 @@ export const metadata: Metadata = {
 };
 
 const RANGES = [
-  { key: "7", label: "7 days", days: 7 },
-  { key: "30", label: "30 days", days: 30 },
-  { key: "90", label: "90 days", days: 90 },
-  { key: "all", label: "All time", days: null },
+  { key: "today", label: "Today", days: 1 },
+  { key: "all", label: "Full time", days: null },
 ] as const;
 
 const EVENTS_CAP = 100_000;
@@ -94,7 +92,7 @@ export default async function AdminAnalyticsPage({
 
   const sp = await searchParams;
   const tab = sp.tab === "approvals" ? "approvals" : "analytics";
-  const range = RANGES.find((r) => r.key === sp.days) ?? RANGES[1];
+  const range = RANGES.find((r) => r.key === sp.days) ?? RANGES[0];
   const cutoffIso = cutoffFor(range.days);
 
   const admin = createAdminClient();
