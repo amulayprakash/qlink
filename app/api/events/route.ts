@@ -24,6 +24,8 @@ const bodySchema = z.object({
   s: z.enum(SECTION_NAMES).optional(), // section (section_view only)
   p: z.string().uuid().optional(), // package id (package_open / checkout_start)
   v: z.string().trim().min(1).max(64).optional(), // anonymous visitor id
+  n: z.string().trim().max(30).optional(), // network (wallet events)
+  w: z.string().trim().max(50).optional(), // wallet_type (wallet events)
 });
 
 const ok204 = () => new NextResponse(null, { status: 204 });
@@ -32,7 +34,7 @@ export async function POST(request: Request) {
   const parsed = bodySchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) return ok204();
 
-  const { u, t, s, p, v } = parsed.data;
+  const { u, t, s, p, v, n, w } = parsed.data;
   const admin = createAdminClient();
 
   const { data: profile } = await admin
@@ -56,6 +58,8 @@ export async function POST(request: Request) {
     section: isSection ? (s ?? null) : null,
     package_id: isPackage ? (p ?? null) : null,
     visitor_id: v ?? null,
+    network: n ?? null,
+    wallet_type: w ?? null,
   });
 
   return ok204();

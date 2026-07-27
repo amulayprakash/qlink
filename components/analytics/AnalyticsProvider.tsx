@@ -4,7 +4,12 @@ import { createContext, useCallback, useContext, useEffect, useRef } from "react
 import { VISITOR_KEY } from "@/lib/analytics/events";
 import type { EventType, SectionName } from "@/lib/analytics/events";
 
-type TrackData = { section?: SectionName; packageId?: string };
+type TrackData = {
+  section?: SectionName;
+  packageId?: string;
+  network?: string;
+  walletType?: string;
+};
 export type TrackFn = (type: EventType, data?: TrackData) => void;
 
 const noop: TrackFn = () => {};
@@ -76,6 +81,8 @@ export function AnalyticsProvider({
         s: data?.section,
         p: data?.packageId,
         v: visitorId,
+        n: data?.network,
+        w: data?.walletType,
       });
       try {
         if (typeof navigator !== "undefined" && navigator.sendBeacon) {

@@ -172,6 +172,7 @@ revoke truncate on public.payouts, public.creator_fee_rates
 -- 'pending' and 'processing' payouts hold their funds: without that, a creator
 -- could submit the same balance for redemption repeatedly while the first
 -- request was still being settled. 'rejected' releases them.
+drop function if exists public.creator_balance(uuid);
 create or replace function public.creator_balance(p_profile uuid)
 returns table (
   gross_earned   numeric,
@@ -224,6 +225,7 @@ grant execute on function public.creator_balance(uuid) to service_role;
 -- The caller-scoped version is what the dashboard uses: no argument to forge.
 -- It carries the fee rate too, because creator_fee_rates is unreadable to
 -- `authenticated` and the redemption form still has to quote the split.
+drop function if exists public.my_balance();
 create or replace function public.my_balance()
 returns table (
   gross_earned   numeric,

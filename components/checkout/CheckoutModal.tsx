@@ -3,7 +3,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   useAccount,
-  useAccountEffect,
   useConnect,
   useSwitchChain,
   useWriteContract,
@@ -27,6 +26,7 @@ import { useEvmWalletOptions } from "@/lib/crypto/use-evm-connectors";
 import { useWalletEnv } from "@/lib/crypto/use-wallet-env";
 import { usePromo } from "@/components/page/promo-context";
 import { WalletConnectQRModal } from "./WalletConnectQRModal";
+import { useTrack } from "@/components/analytics/AnalyticsProvider";
 
 type OrderResp = {
   orderId: string;
@@ -245,6 +245,7 @@ export function CheckoutModal({
     address: evmAddress,
     isConnected: evmConnected,
     chainId: evmChainId,
+    connector,
   } = useAccount();
   const { connectAsync } = useConnect();
   const { switchChainAsync, isPending: switching } = useSwitchChain();
@@ -262,6 +263,7 @@ export function CheckoutModal({
   const isTron = selectedNetwork?.kind === "tron";
   const targetChainId = selectedNetwork?.chainId;
   const selectionReady = !!(sel.family && selNetId && selTok);
+  const track = useTrack();
 
   const wrongNetwork =
     !isTron && evmConnected && !!targetChainId && evmChainId !== targetChainId;
@@ -377,7 +379,7 @@ export function CheckoutModal({
     } finally {
       setBusy(false);
     }
-  }, [order, activeAddress, config, creator?.username, switchChainAsync, writeContractAsync, tron.route, tron.address]);
+  }, [order, activeAddress, switchChainAsync, writeContractAsync, tron.route, tron.address]);
 
   // Auto-pay when wallet becomes ready after selection
   useEffect(() => {
@@ -386,6 +388,23 @@ export function CheckoutModal({
       pay();
     }
   }, [walletReady, step, phase, pay]);
+
+  const prevConnected = useRef(false);
+  useEffect(() => {
+    if (walletReady && !prevConnected.current) {
+      let walletType = "unknown";
+      if (isTron) {
+        walletType = tron.route === "walletconnect" ? "WalletConnect" : "TronLink";
+      } else {
+        walletType = connector?.name || "EVM Wallet";
+      }
+      track("wallet_connected", {
+        network: isTron ? "tron" : "evm",
+        walletType,
+      });
+    }
+    prevConnected.current = walletReady;
+  }, [walletReady, isTron, tron.route, connector, track]);
 
   function clearOrder() {
     setOrder(null);
@@ -424,6 +443,7 @@ export function CheckoutModal({
     setConnectingUid(connector.uid);
     setMessage("");
     autoPayRef.current = true;
+    track("wallet_connect_click", { network: "evm", walletType: connector.name });
     try {
       await connectAsync({ connector, chainId: targetChainId });
     } catch (e) {
@@ -438,11 +458,13 @@ export function CheckoutModal({
     setMessage("");
     armGrace(DISMISS_BLOCK_MS);
     autoPayRef.current = true;
+    track("wallet_connect_click", { network: "evm", walletType: "WalletConnect" });
     openAppKit();
   }
 
   async function connectTronLink() {
     autoPayRef.current = true;
+    track("wallet_connect_click", { network: "tron", walletType: "TronLink" });
     const addr = await tron.connectInjected();
     if (!addr) autoPayRef.current = false;
   }
@@ -453,6 +475,7 @@ export function CheckoutModal({
       return;
     }
     autoPayRef.current = true;
+    track("wallet_connect_click", { network: "tron", walletType: "WalletConnect" });
     const addr = await tron.connectWalletConnect(selectedNetwork.wcChainId);
     if (!addr) autoPayRef.current = false;
   }
@@ -489,6 +512,7 @@ export function CheckoutModal({
       }
       setOrder(json as OrderResp);
       setStep(2);
+      track("wallet_button_click");
     } catch {
       setMessage("Network error creating order");
       setPhase("error");
@@ -540,7 +564,7 @@ export function CheckoutModal({
 
           {families.length === 0 && (
             <p className="page-danger-text mt-6 text-sm">
-              This creator hasn't configured a payment wallet yet.
+              This creator hasn&apos;t configured a payment wallet yet.
             </p>
           )}
 

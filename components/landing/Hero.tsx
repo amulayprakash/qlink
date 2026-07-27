@@ -3,7 +3,7 @@
 import Link from "next/link";
 import Image from "next/image";
 import { motion, useReducedMotion, type Variants } from "motion/react";
-import { TokenUSDC, NetworkBase, NetworkEthereum, NetworkPolygon, TokenUSDT } from "@web3icons/react";
+import { TokenUSDC, NetworkBase } from "@web3icons/react";
 
 const container: Variants = {
   hidden: {},

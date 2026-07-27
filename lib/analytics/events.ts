@@ -15,6 +15,9 @@ export const EVENT_TYPES = [
   "section_view",
   "package_open",
   "checkout_start",
+  "wallet_button_click",
+  "wallet_connect_click",
+  "wallet_connected",
 ] as const;
 export type EventType = (typeof EVENT_TYPES)[number];
 

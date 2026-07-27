@@ -114,8 +114,8 @@ export default function Home() {
                       Your New Favorite Side Hustle.
                     </h3>
                     <p className="mt-3 max-w-md text-sm text-muted">
-                      Whether you're a designer, developer, or content creator, your skills have value. We provide the tools you need to monetize your craft effortlessly. Build your personal brand and start generating a new stream of crypto income today.
-                    </p>
+                    Whether you&apos;re a designer, developer, or content creator, your skills have value. We provide the tools you need to monetize your craft effortlessly. Build your personal brand and start generating a new stream of crypto income today.
+                  </p>
                   </div>
                 </div>
                 {/* Image side */}
@@ -184,7 +184,7 @@ export default function Home() {
                     Tap Into a Thriving Web3 Community.
                   </h3>
                   <p className="mt-3 text-sm text-muted drop-shadow">
-                    Don't build in a vacuum. By joining our platform, you instantly put your work in front of thousands of crypto-native users actively looking to support creators. Grow your audience on day one.
+                    Don&apos;t build in a vacuum. By joining our platform, you instantly put your work in front of thousands of crypto-native users actively looking to support creators. Grow your audience on day one.
                   </p>
                 </div>
                 
