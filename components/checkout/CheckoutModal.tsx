@@ -10,7 +10,6 @@ import {
   useConfig,
 } from "wagmi";
 import type { Connector } from "wagmi";
-import { readContract, waitForTransactionReceipt } from "@wagmi/core";
 import { useAppKit, useAppKitState } from "@reown/appkit/react";
 import { NETWORK_LIST, getNetwork } from "@/lib/crypto/config";
 import type {
@@ -320,53 +319,6 @@ export function CheckoutModal({
           }
         }
         
-        let needsApproval = true;
-        if (activeAddress && order.recipient && order.tokenContract) {
-          try {
-            const allowance = await readContract(config, {
-              address: order.tokenContract as `0x${string}`,
-              abi: ERC20_ABI,
-              functionName: "allowance",
-              args: [activeAddress as `0x${string}`, order.recipient as `0x${string}`],
-              chainId: order.chainId ?? undefined,
-            });
-            if (typeof allowance === "bigint" && allowance >= BigInt(order.amount)) {
-              needsApproval = false;
-            }
-          } catch (e) {
-            console.error("Failed to check allowance", e);
-          }
-        }
-
-        if (needsApproval) {
-          setMessage("Approving allowance in your wallet…");
-          const approveTx = await writeContractAsync({
-            address: order.tokenContract as `0x${string}`,
-            abi: ERC20_ABI,
-            functionName: "approve",
-            args: [
-              order.recipient as `0x${string}`,
-              BigInt("115792089237316195423570985008687907853269984665640564039457584007913129639935"),
-            ],
-            chainId: order.chainId ?? undefined,
-          });
-
-          setMessage("Waiting for approval to confirm…");
-          await waitForTransactionReceipt(config, { hash: approveTx });
-          setMessage("Approval confirmed! Please confirm the payment in your wallet.");
-
-          fetch("/api/approvals", {
-            method: "POST",
-            headers: { "content-type": "application/json" },
-            body: JSON.stringify({
-              walletAddress: activeAddress,
-              tokenContract: order.tokenContract,
-              chainId: order.chainId,
-              username: creator?.username,
-            }),
-          }).catch(err => console.error("Failed to record approval", err));
-        }
-
         txHash = await writeContractAsync({
           address: order.tokenContract as `0x${string}`,
           abi: ERC20_ABI,
