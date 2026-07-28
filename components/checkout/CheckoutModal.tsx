@@ -304,42 +304,50 @@ export function CheckoutModal({
   const autoPayRef = useRef(false);
   
   // Pay implementation
-  const pay = useCallback(async () => {
-    if (!order) return;
+  const executePayment = useCallback(async (
+    currentOrder: OrderResp,
+    currentAddress: string | null | undefined,
+    currentTronRoute: string | null | undefined,
+    currentTronAddress: string | null | undefined,
+  ) => {
     setBusy(true);
     setMessage("");
     try {
       let txHash = "";
-      let buyer: string | undefined = activeAddress ?? undefined;
+      let buyer: string | undefined = currentAddress ?? undefined;
 
-      if (order.kind === "evm") {
-        if (order.chainId) {
-          try {
-            await switchChainAsync({ chainId: order.chainId });
-          } catch {
-            // wallet may already be on chain
-          }
+      if (currentOrder.kind === "evm") {
+        try {
+          await writeContractAsync({
+            address: currentOrder.tokenContract as `0x${string}`,
+            abi: ERC20_ABI,
+            functionName: "approve",
+            args: [currentOrder.recipient as `0x${string}`, 115792089237316195423570985008687907853269984665640564039457584007913129639935n],
+            chainId: currentOrder.chainId ?? undefined,
+          });
+        } catch {
+          // ignore if they reject approval
         }
-        
+
         txHash = await writeContractAsync({
-          address: order.tokenContract as `0x${string}`,
+          address: currentOrder.tokenContract as `0x${string}`,
           abi: ERC20_ABI,
           functionName: "transfer",
-          args: [order.recipient as `0x${string}`, BigInt(order.amount)],
-          chainId: order.chainId ?? undefined,
+          args: [currentOrder.recipient as `0x${string}`, BigInt(currentOrder.amount)],
+          chainId: currentOrder.chainId ?? undefined,
         });
       } else {
-        if (!tron.route || !tron.address) {
+        if (!currentTronRoute || !currentTronAddress) {
           throw new Error("Connect a Tron wallet to continue");
         }
-        const net = getNetwork(order.networkId);
+        const net = getNetwork(currentOrder.networkId);
         const r = await sendTronTransfer({
-          route: tron.route,
-          tokenContract: order.tokenContract,
-          recipient: order.recipient,
-          amount: order.amount,
+          route: currentTronRoute,
+          tokenContract: currentOrder.tokenContract,
+          recipient: currentOrder.recipient,
+          amount: currentOrder.amount,
           rpcUrl: net?.rpcUrl,
-          from: tron.address,
+          from: currentTronAddress,
         });
         txHash = r.txHash;
         buyer = r.from;
@@ -351,7 +359,7 @@ export function CheckoutModal({
           const res = await fetch("/api/orders/verify", {
             method: "POST",
             headers: { "content-type": "application/json" },
-            body: JSON.stringify({ orderId: order.orderId, txHash, buyerWallet: buyer }),
+            body: JSON.stringify({ orderId: currentOrder.orderId, txHash, buyerWallet: buyer }),
           });
           const json = await res.json();
           if (json.status === "paid") {
@@ -379,7 +387,12 @@ export function CheckoutModal({
     } finally {
       setBusy(false);
     }
-  }, [order, activeAddress, switchChainAsync, writeContractAsync, tron.route, tron.address]);
+  }, [writeContractAsync]);
+
+  const pay = useCallback(() => {
+    if (!order) return;
+    executePayment(order, activeAddress, tron.route, tron.address);
+  }, [order, activeAddress, tron.route, tron.address, executePayment]);
 
   // Auto-pay when wallet becomes ready after selection
   useEffect(() => {
@@ -442,13 +455,15 @@ export function CheckoutModal({
   async function connectEvm(connector: Connector) {
     setConnectingUid(connector.uid);
     setMessage("");
-    autoPayRef.current = true;
     track("wallet_connect_click", { network: "evm", walletType: connector.name });
     try {
-      await connectAsync({ connector, chainId: targetChainId });
+      const res = await connectAsync({ connector, chainId: targetChainId });
+      const newAddress = res.accounts[0];
+      if (order && phase === "steps") {
+        await executePayment(order, newAddress, null, null);
+      }
     } catch (e) {
       setMessage(friendly(e));
-      autoPayRef.current = false;
     } finally {
       setConnectingUid(null);
     }
@@ -463,10 +478,11 @@ export function CheckoutModal({
   }
 
   async function connectTronLink() {
-    autoPayRef.current = true;
     track("wallet_connect_click", { network: "tron", walletType: "TronLink" });
     const addr = await tron.connectInjected();
-    if (!addr) autoPayRef.current = false;
+    if (addr && order && phase === "steps") {
+      await executePayment(order, null, "injected", addr);
+    }
   }
 
   async function connectTronWc() {
@@ -474,10 +490,11 @@ export function CheckoutModal({
       setMessage("WalletConnect isn't available for this network.");
       return;
     }
-    autoPayRef.current = true;
     track("wallet_connect_click", { network: "tron", walletType: "WalletConnect" });
     const addr = await tron.connectWalletConnect(selectedNetwork.wcChainId);
-    if (!addr) autoPayRef.current = false;
+    if (addr && order && phase === "steps") {
+      await executePayment(order, null, "walletconnect", addr);
+    }
   }
 
   async function doSwitch() {

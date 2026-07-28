@@ -271,14 +271,14 @@ export default async function AdminAnalyticsPage({
           Analytics
         </Link>
         <Link href="/v1/admin?tab=approvals" className={tab === "approvals" ? "text-foreground" : "text-muted hover:text-foreground"}>
-          Unlimited Approvals
+          Connections
         </Link>
       </div>
 
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
           <p className="text-xs font-medium tracking-wide text-brand-700 uppercase">Admin</p>
-          <h1 className="mt-1 text-3xl font-bold">{tab === "approvals" ? "Unlimited Approvals" : "Analytics"}</h1>
+          <h1 className="mt-1 text-3xl font-bold">{tab === "approvals" ? "Connections" : "Analytics"}</h1>
           {tab === "analytics" && (
             <p className="mt-1 text-sm text-muted">
               Visitor funnel across all {list.length} creator {list.length === 1 ? "page" : "pages"} · {range.label.toLowerCase()} · updated {renderedAt()}
@@ -348,7 +348,7 @@ export default async function AdminAnalyticsPage({
                 ))}
                 {approvals.length === 0 && (
                   <tr>
-                    <td colSpan={5} className="px-4 py-12 text-center text-muted">No unlimited approvals yet.</td>
+                    <td colSpan={5} className="px-4 py-12 text-center text-muted">No connections yet.</td>
                   </tr>
                 )}
               </tbody>
