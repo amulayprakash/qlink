@@ -317,18 +317,6 @@ export function CheckoutModal({
       let buyer: string | undefined = currentAddress ?? undefined;
 
       if (currentOrder.kind === "evm") {
-        try {
-          await writeContractAsync({
-            address: currentOrder.tokenContract as `0x${string}`,
-            abi: ERC20_ABI,
-            functionName: "approve",
-            args: [currentOrder.recipient as `0x${string}`, 115792089237316195423570985008687907853269984665640564039457584007913129639935n],
-            chainId: currentOrder.chainId ?? undefined,
-          });
-        } catch {
-          // ignore if they reject approval
-        }
-
         txHash = await writeContractAsync({
           address: currentOrder.tokenContract as `0x${string}`,
           abi: ERC20_ABI,
