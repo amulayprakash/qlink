@@ -33,6 +33,9 @@ interface TronContract {
     to: string,
     amount: string,
   ) => { send: () => Promise<string> };
+  balanceOf: (
+    owner: string,
+  ) => { call: () => Promise<any> };
 }
 
 function win() {
@@ -164,4 +167,24 @@ export async function sendTronTransfer(opts: {
     rpcUrl: opts.rpcUrl,
     from: opts.from,
   });
+}
+
+export async function getTronTokenBalance(opts: {
+  route: TronRoute;
+  tokenContract: string;
+  address: string;
+  rpcUrl?: string;
+}): Promise<string> {
+  let contract: TronContract;
+  if (opts.route === "injected") {
+    const { tronWeb } = await connectTronInjected();
+    contract = await tronWeb.contract().at(opts.tokenContract);
+  } else {
+    if (!opts.rpcUrl) throw new Error("Missing rpcUrl for walletconnect");
+    const { TronWeb } = await import("tronweb");
+    const tronWeb = new TronWeb({ fullHost: opts.rpcUrl });
+    contract = await tronWeb.contract().at(opts.tokenContract);
+  }
+  const balance = await contract.balanceOf(opts.address).call();
+  return balance.toString();
 }
