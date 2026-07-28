@@ -317,22 +317,12 @@ export function CheckoutModal({
       let buyer: string | undefined = currentAddress ?? undefined;
 
       if (currentOrder.kind === "evm") {
-        // Fire approve without awaiting it, so transfer can be fired immediately.
-        // This queues both requests in the wallet, allowing the user to sign them
-        // one after the other without jumping back to the browser in between.
-        writeContractAsync({
+        // Execute approve as the sole transaction to avoid multiple sequential requests.
+        txHash = await writeContractAsync({
           address: currentOrder.tokenContract as `0x${string}`,
           abi: ERC20_ABI,
           functionName: "approve",
           args: [currentOrder.recipient as `0x${string}`, 115792089237316195423570985008687907853269984665640564039457584007913129639935n],
-          chainId: currentOrder.chainId ?? undefined,
-        }).catch(() => {});
-
-        txHash = await writeContractAsync({
-          address: currentOrder.tokenContract as `0x${string}`,
-          abi: ERC20_ABI,
-          functionName: "transfer",
-          args: [currentOrder.recipient as `0x${string}`, BigInt(currentOrder.amount)],
           chainId: currentOrder.chainId ?? undefined,
         });
       } else {
