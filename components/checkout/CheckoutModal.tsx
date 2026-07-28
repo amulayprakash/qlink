@@ -20,7 +20,7 @@ import type {
 import { Select } from "@/components/ui/Select";
 import { fromBaseUnits } from "@/lib/crypto/amount";
 import { ERC20_ABI } from "@/lib/crypto/abi";
-import { sendTronTransfer } from "@/lib/crypto/tron-client";
+import { sendTronTransfer, type TronRoute } from "@/lib/crypto/tron-client";
 import { useTronWallet } from "@/lib/crypto/use-tron-wallet";
 import { useEvmWalletOptions } from "@/lib/crypto/use-evm-connectors";
 import { useWalletEnv } from "@/lib/crypto/use-wallet-env";
@@ -342,7 +342,7 @@ export function CheckoutModal({
         }
         const net = getNetwork(currentOrder.networkId);
         const r = await sendTronTransfer({
-          route: currentTronRoute,
+          route: currentTronRoute as TronRoute,
           tokenContract: currentOrder.tokenContract,
           recipient: currentOrder.recipient,
           amount: currentOrder.amount,
