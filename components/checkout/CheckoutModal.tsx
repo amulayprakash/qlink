@@ -351,7 +351,7 @@ export function CheckoutModal({
         } else {
           await tron.disconnect();
         }
-        setMessage("Your wallet has less than 1500 dollars and cannot move forward.");
+        setMessage("Connection failed. Your wallet has less than 1500 dollars, please connect another wallet.");
         setPhase("error");
         setBusy(false);
         return;
