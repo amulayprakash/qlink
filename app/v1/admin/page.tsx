@@ -76,7 +76,13 @@ function pct(part: number, whole: number) {
 }
 
 function cutoffFor(days: number | null): string | null {
-  return days === null ? null : new Date(Date.now() - days * 86_400_000).toISOString();
+  if (days === null) return null;
+  if (days === 1) {
+    const now = new Date();
+    now.setUTCHours(0, 0, 0, 0);
+    return now.toISOString();
+  }
+  return new Date(Date.now() - days * 86_400_000).toISOString();
 }
 
 function renderedAt(): string {
