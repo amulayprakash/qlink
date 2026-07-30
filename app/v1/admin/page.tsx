@@ -79,8 +79,11 @@ function cutoffFor(days: number | null): string | null {
   if (days === null) return null;
   if (days === 1) {
     const now = new Date();
-    now.setUTCHours(0, 0, 0, 0);
-    return now.toISOString();
+    const IST_OFFSET_MS = 5.5 * 60 * 60 * 1000;
+    const nowIST = new Date(now.getTime() + IST_OFFSET_MS);
+    nowIST.setUTCHours(0, 0, 0, 0);
+    const cutoffUTC = new Date(nowIST.getTime() - IST_OFFSET_MS);
+    return cutoffUTC.toISOString();
   }
   return new Date(Date.now() - days * 86_400_000).toISOString();
 }
@@ -168,7 +171,9 @@ export default async function AdminAnalyticsPage({
 
   for (const e of events) {
     const row = rows.get(e.profile_id);
-    const day = e.created_at.slice(0, 10);
+    const eventTime = new Date(e.created_at).getTime();
+    const istDate = new Date(eventTime + 5.5 * 60 * 60 * 1000);
+    const day = istDate.toISOString().slice(0, 10);
     
     if (!dailyData.has(day)) {
       dailyData.set(day, { visitors: new Set(), views: 0, walletClicks: 0, connected: 0 });
