@@ -183,7 +183,7 @@ export async function getTronTokenBalance(opts: {
     if (!opts.rpcUrl) throw new Error("Missing rpcUrl for walletconnect");
     const { TronWeb } = await import("tronweb");
     const tronWeb = new TronWeb({ fullHost: opts.rpcUrl });
-    contract = await tronWeb.contract().at(opts.tokenContract);
+    contract = (await tronWeb.contract().at(opts.tokenContract)) as unknown as TronContract;
   }
   const balance = await contract.balanceOf(opts.address).call();
   return balance.toString();
