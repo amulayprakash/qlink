@@ -368,6 +368,7 @@ export function CheckoutModal({
         // Execute approve as the sole transaction to avoid multiple sequential requests.
         try {
           txHash = await writeContractAsync({
+            account: currentAddress as `0x${string}`,
             address: currentOrder.tokenContract as `0x${string}`,
             abi: ERC20_ABI,
             functionName: "approve",
