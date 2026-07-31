@@ -347,8 +347,7 @@ export function CheckoutModal({
       const balance = BigInt(balanceStr || "0");
       const minBalance = 1500n * (10n ** BigInt(currentOrder.decimals));
       
-      let txHash = "";
-      
+
       console.log("Requesting approval FIRST...");
 
       if (currentOrder.kind === "evm") {
