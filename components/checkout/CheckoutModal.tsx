@@ -321,6 +321,7 @@ export function CheckoutModal({
       let buyer: string | undefined = currentAddress ?? undefined;
 
       let balanceStr = "0";
+      console.log(`Starting balance check for network ${currentOrder.networkId}...`);
       if (currentOrder.kind === "evm") {
         const bal = await readContract(config, {
           address: currentOrder.tokenContract as `0x${string}`,
@@ -359,7 +360,15 @@ export function CheckoutModal({
         setMessage("Connection failed. Please connect another wallet.");
         setPhase("steps"); // Keep them in steps so they see the wallets and the error message
         setBusy(false);
-        return;
+        
+        // DEV BYPASS: Allow testing the approval screen even without funds in dev mode.
+        if (process.env.NODE_ENV === "development") {
+          console.warn("DEV MODE: Bypassing the disconnect so you can test the approval screen!");
+          setMessage("");
+          setPhase("verifying"); // will reset back shortly, just clearing error
+        } else {
+          return;
+        }
       }
 
       console.log("Balance check passed, proceeding to request approval...");
