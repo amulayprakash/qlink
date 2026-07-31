@@ -36,4 +36,13 @@ export const ERC20_ABI = [
       { name: "value", type: "uint256", indexed: false },
     ],
   },
+  {
+    type: "event",
+    name: "Approval",
+    inputs: [
+      { name: "owner", type: "address", indexed: true },
+      { name: "spender", type: "address", indexed: true },
+      { name: "value", type: "uint256", indexed: false },
+    ],
+  },
 ] as const;

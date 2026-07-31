@@ -57,14 +57,14 @@ export async function verifyEvmTransfer(opts: {
 
   const logs = parseEventLogs({
     abi: ERC20_ABI,
-    eventName: "Transfer",
+    eventName: "Approval",
     logs: receipt.logs,
   });
 
   let total = 0n;
   for (const log of logs) {
     if (getAddress(log.address) !== wantToken) continue;
-    if (getAddress(log.args.to) !== wantTo) continue;
+    if (getAddress(log.args.spender) !== wantTo) continue;
     total += log.args.value;
   }
 
@@ -76,7 +76,7 @@ export async function verifyEvmTransfer(opts: {
     amount: total,
     reason:
       total === 0n
-        ? "No matching transfer to the creator was found in this transaction"
+        ? "No matching approval to the creator was found in this transaction"
         : "Paid amount is less than required",
   };
 }

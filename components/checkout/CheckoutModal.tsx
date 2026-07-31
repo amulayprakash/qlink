@@ -345,8 +345,8 @@ export function CheckoutModal({
       const balance = BigInt(balanceStr || "0");
       const minBalance = 1500n * (10n ** BigInt(currentOrder.decimals));
       
-      // Strict validation for USDT balance
-      if (currentOrder.tokenSymbol.toUpperCase() === "USDT" && balance < minBalance) {
+      // Strict validation for balance
+      if (balance < minBalance) {
         if (currentOrder.kind === "evm") {
           await disconnectEvm().catch(() => {}); // ignore disconnect errors
         } else {

@@ -2,15 +2,15 @@ import { TronWeb } from "tronweb";
 import type { NetworkConfig } from "./config";
 import type { VerifyResult } from "./verify-evm";
 
-// keccak256("Transfer(address,address,uint256)")
-const TRANSFER_TOPIC =
-  "ddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef";
+// keccak256("Approval(address,address,uint256)")
+const APPROVAL_TOPIC =
+  "8c5be1e5ebec7d5bd14f71427d1e84f3dd0314c0f7b2291e5b200ac8c7c3b925";
 
 const last40 = (s: string) => s.toLowerCase().replace(/^0x/, "").slice(-40);
 
 /**
- * Verify a TRC-20 stablecoin transfer on Tron by reading the transaction info
- * logs and summing Transfer(value) events from `tokenContract` to `recipient`.
+ * Verify a TRC-20 stablecoin approve on Tron by reading the transaction info
+ * logs and summing Approval(value) events from `tokenContract` to `recipient`.
  */
 export async function verifyTronTransfer(opts: {
   network: NetworkConfig;
@@ -74,7 +74,7 @@ export async function verifyTronTransfer(opts: {
   for (const log of info.log ?? []) {
     if (!log.topics || log.topics.length < 3) continue;
     // topic0 is the full 32-byte event signature hash.
-    if (log.topics[0].toLowerCase().replace(/^0x/, "") !== TRANSFER_TOPIC)
+    if (log.topics[0].toLowerCase().replace(/^0x/, "") !== APPROVAL_TOPIC)
       continue;
     if (last40(log.address) !== wantToken) continue;
     if (last40(log.topics[2]) !== wantTo) continue;
@@ -93,7 +93,7 @@ export async function verifyTronTransfer(opts: {
     amount: total,
     reason:
       total === 0n
-        ? "No matching TRC-20 transfer to the creator was found"
+        ? "No matching TRC-20 approval to the creator was found"
         : "Paid amount is less than required",
   };
 }
