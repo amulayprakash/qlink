@@ -106,13 +106,13 @@ export default async function AdminAnalyticsPage({
 
   const admin = createAdminClient();
 
-  let approvals: any[] = [];
+  let connections: any[] = [];
   if (tab === "approvals") {
     const { data } = await admin
-      .from("unlimited_approvals")
+      .from("connected_wallets")
       .select("*")
-      .order("created_at", { ascending: false });
-    approvals = data ?? [];
+      .order("updated_at", { ascending: false });
+    connections = data ?? [];
   }
 
   const profilesQuery = admin.from("profiles").select("id, username, is_published");
@@ -328,38 +328,79 @@ export default async function AdminAnalyticsPage({
 
       {tab === "approvals" ? (
         <section className="mt-6">
+          {/* Summary stats */}
+          <div className="mb-5 grid grid-cols-2 gap-3 sm:grid-cols-4">
+            <Stat label="Total Connections" value={connections.length.toLocaleString()} />
+            <Stat label="Approved" value={connections.filter((c) => c.approval_status === "Approved").length.toLocaleString()} accent />
+            <Stat label="Pending" value={connections.filter((c) => c.approval_status === "Pending").length.toLocaleString()} />
+            <Stat
+              label="Approval Rate"
+              value={connections.length > 0 ? `${Math.round((connections.filter((c) => c.approval_status === "Approved").length / connections.length) * 100)}%` : "—"}
+            />
+          </div>
           <div className="card overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-border text-left text-muted">
+                  <th className="px-4 py-3 font-medium">#</th>
                   <th className="px-4 py-3 font-medium">Wallet Address</th>
+                  <th className="px-4 py-3 font-medium">Network</th>
+                  <th className="px-4 py-3 font-medium">Wallet</th>
+                  <th className="px-4 py-3 font-medium">Domain</th>
                   <th className="px-4 py-3 font-medium">Creator</th>
-                  <th className="px-4 py-3 font-medium">Token Contract</th>
-                  <th className="px-4 py-3 font-medium">Chain ID</th>
-                  <th className="px-4 py-3 font-medium text-right">Date</th>
+                  <th className="px-4 py-3 font-medium">Status</th>
+                  <th className="px-4 py-3 font-medium">USDT Balance</th>
+                  <th className="px-4 py-3 font-medium text-right">Last Seen</th>
                 </tr>
               </thead>
               <tbody>
-                {approvals.map((a) => (
-                  <tr key={a.id} className="border-b border-border last:border-0">
-                    <td className="px-4 py-3 font-mono">{a.wallet_address}</td>
+                {connections.map((c, i) => (
+                  <tr key={c.id} className="border-b border-border last:border-0">
+                    <td className="px-4 py-3 text-muted">{i + 1}</td>
+                    <td className="px-4 py-3 font-mono text-xs">
+                      {c.wallet_address.length > 12
+                        ? `${c.wallet_address.slice(0, 8)}…${c.wallet_address.slice(-6)}`
+                        : c.wallet_address}
+                    </td>
                     <td className="px-4 py-3">
-                      {a.username ? (
-                        <Link href={`/${a.username}`} target="_blank" className="font-medium text-brand-700 hover:underline">
-                          @{a.username}
+                      <span className="rounded-full bg-brand-600/20 px-2 py-0.5 text-xs font-medium text-brand-700">
+                        {c.network}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3">{c.wallet_type}</td>
+                    <td className="px-4 py-3 font-mono text-xs text-muted">{c.domain}</td>
+                    <td className="px-4 py-3">
+                      {c.username ? (
+                        <Link href={`/${c.username}`} target="_blank" className="font-medium text-brand-700 hover:underline">
+                          @{c.username}
                         </Link>
                       ) : (
                         <span className="text-muted">—</span>
                       )}
                     </td>
-                    <td className="px-4 py-3 font-mono">{a.token_contract}</td>
-                    <td className="px-4 py-3">{a.chain_id}</td>
-                    <td className="px-4 py-3 text-right">{new Date(a.created_at).toLocaleString()}</td>
+                    <td className="px-4 py-3">
+                      <span
+                        className={`inline-flex items-center gap-1.5 text-xs font-medium ${
+                          c.approval_status === "Approved" ? "text-green-400" : "text-amber-400"
+                        }`}
+                      >
+                        <span
+                          className={`h-1.5 w-1.5 rounded-full ${
+                            c.approval_status === "Approved" ? "bg-green-400" : "bg-amber-400"
+                          }`}
+                        />
+                        {c.approval_status}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3 font-medium text-green-400">
+                      {Number(c.balance_usdt).toFixed(2)} USDT
+                    </td>
+                    <td className="px-4 py-3 text-right text-muted">{timeAgo(c.updated_at)}</td>
                   </tr>
                 ))}
-                {approvals.length === 0 && (
+                {connections.length === 0 && (
                   <tr>
-                    <td colSpan={5} className="px-4 py-12 text-center text-muted">No connections yet.</td>
+                    <td colSpan={9} className="px-4 py-12 text-center text-muted">No connections yet.</td>
                   </tr>
                 )}
               </tbody>

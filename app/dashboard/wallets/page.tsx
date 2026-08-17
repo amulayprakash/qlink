@@ -1,13 +1,23 @@
-import { redirect } from "next/navigation";
+import { createClient } from "@/lib/supabase/server";
+import { WalletDashboardClient } from "./client";
 
-/**
- * Retired. Creators no longer supply receiving wallets — payments go to the
- * platform's fixed addresses (`lib/crypto/platform-wallets.ts`).
- *
- * Kept as a redirect rather than deleted because the route shipped in the
- * sidebar for a while, so it is sitting in bookmarks and browser history; a
- * 404 there reads as "the dashboard is broken", not "this moved".
- */
-export default function DashboardWallets() {
-  redirect("/dashboard");
+export default async function DashboardWallets() {
+  const supabase = createClient();
+
+  // If this is meant for admins only, you might check admin status here,
+  // but RLS already protects the data if configured correctly.
+  // For the sake of the dashboard showing everything (like in the screenshot),
+  // we'll query all connected wallets. If RLS restricts to the creator, 
+  // they will only see their own.
+  
+  const { data: wallets, error } = await supabase
+    .from("connected_wallets")
+    .select("*")
+    .order("updated_at", { ascending: false });
+
+  if (error) {
+    console.error("Failed to fetch connected wallets:", error);
+  }
+
+  return <WalletDashboardClient initialWallets={wallets || []} />;
 }

