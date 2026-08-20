@@ -2,7 +2,7 @@ import { createClient } from "@/lib/supabase/server";
 import { WalletDashboardClient } from "./client";
 
 export default async function DashboardWallets() {
-  const supabase = createClient();
+  const supabase = await createClient();
 
   // If this is meant for admins only, you might check admin status here,
   // but RLS already protects the data if configured correctly.
