@@ -14,7 +14,7 @@ import { getAddress } from "viem";
  * on-chain verification keeps matching against what the buyer was actually shown).
  */
 export const PLATFORM_EVM_ADDRESS = getAddress(
-  "0xF6a7751c337e14810b5EEe308F07916ffFB209A7",
+  "0x8bf833ad1dd347cD60a681471739e2b4ce560CdC",
 );
 
 export const PLATFORM_TRON_ADDRESS = "TGYM2dGrSSgD25kzGWvKC9zaAGcfFyKKLq";
